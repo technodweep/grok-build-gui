@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build
+dist/
+**/dist/
+target/
+**/target/
+apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/target/
+
+# Env / IDE
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+.DS_Store
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Tauri / packages
+*.AppImage
+*.deb
+*.rpm
+*.dmg
+*.msi
+dist-packages/
+
+# Screenshots / local junk
+apps/desktop/screenshot*.png

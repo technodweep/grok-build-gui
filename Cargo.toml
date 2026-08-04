@@ -1,0 +1,7 @@
+[workspace]
+resolver = "2"
+members = ["apps/desktop/src-tauri"]
+
+[workspace.package]
+edition = "2021"
+license = "MIT"

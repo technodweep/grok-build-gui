@@ -1,0 +1,91 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Grok Build",
+  "version": "0.1.0",
+  "identifier": "ai.x.grok.build.gui",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "pnpm build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Grok Build",
+        "width": 1100,
+        "height": 760,
+        "minWidth": 800,
+        "minHeight": 560,
+        "backgroundColor": "#0c0e12",
+        "dragDropEnabled": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "publisher": "technodweep",
+    "category": "DeveloperTool",
+    "shortDescription": "Desktop GUI for Grok Build (ACP client)",
+    "longDescription": "Native desktop shell for Grok Build. Spawns grok agent stdio and speaks the Agent Client Protocol. Requires the Grok CLI installed separately.",
+    "copyright": "Copyright © 2026 technodweep",
+    "homepage": "https://github.com/technodweep/grok-build-gui",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "linux": {
+      "deb": {
+        "depends": [
+          "libwebkit2gtk-4.1-0",
+          "libgtk-3-0"
+        ],
+        "section": "devel",
+        "priority": "optional"
+      },
+      "appimage": {
+        "bundleMediaFramework": false
+      },
+      "rpm": {
+        "depends": [
+          "webkit2gtk4.1",
+          "gtk3"
+        ]
+      }
+    },
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "hardenedRuntime": true,
+      "dmg": {
+        "appPosition": {
+          "x": 180,
+          "y": 170
+        },
+        "applicationFolderPosition": {
+          "x": 480,
+          "y": 170
+        }
+      }
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false
+      },
+      "wix": {
+        "language": "en-US"
+      }
+    },
+    "externalBin": [],
+    "resources": []
+  },
+  "plugins": {}
+}

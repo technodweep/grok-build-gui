@@ -1,0 +1,24 @@
+{
+  "name": "grok-build-gui",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Desktop GUI for Grok Build (Tauri 2 + ACP client)",
+  "scripts": {
+    "dev": "./scripts/dev.sh",
+    "dev:raw": "pnpm --dir apps/desktop tauri dev",
+    "build": "pnpm --dir apps/desktop tauri build",
+    "build:linux": "./scripts/build-linux.sh",
+    "ui:dev": "pnpm --dir apps/desktop dev",
+    "ui:build": "pnpm --dir apps/desktop build",
+    "typecheck": "pnpm --dir apps/desktop exec tsc --noEmit",
+    "cargo:check": "cargo check -p grok-build-gui",
+    "cargo:test": "cargo test -p grok-build-gui",
+    "cargo:clippy": "cargo clippy -p grok-build-gui --all-targets -- -D warnings",
+    "cargo:fmt": "cargo fmt -p grok-build-gui",
+    "ci": "./scripts/ci-local.sh"
+  },
+  "packageManager": "pnpm@10.12.1",
+  "engines": {
+    "node": ">=22"
+  }
+}

@@ -1,0 +1,166 @@
+@import "tailwindcss";
+
+/* Theme tokens — components should prefer var(--gb-*) for polish surfaces. */
+:root,
+[data-theme="dark"] {
+  --gb-surface: #0c0e12;
+  --gb-surface-raised: #141820;
+  --gb-surface-overlay: #1a1f2a;
+  --gb-border: #2a3140;
+  --gb-ink: #e8ecf4;
+  --gb-ink-muted: #8b95a8;
+  --gb-accent: #7c9cff;
+  --gb-accent-dim: #4a6fd4;
+  --gb-success: #3dd68c;
+  --gb-warning: #f0b429;
+  --gb-danger: #f07178;
+  --gb-user: #1e2a44;
+  --gb-agent: #12161e;
+  --gb-tool: #1a2420;
+  --gb-thought: #1c1a28;
+  --gb-font-size: 14px;
+}
+
+[data-theme="light"] {
+  --gb-surface: #f4f6fa;
+  --gb-surface-raised: #ffffff;
+  --gb-surface-overlay: #e8ecf4;
+  --gb-border: #c9d0dc;
+  --gb-ink: #141820;
+  --gb-ink-muted: #5a6578;
+  --gb-accent: #3d5fd4;
+  --gb-accent-dim: #2a45a0;
+  --gb-success: #1a9a5c;
+  --gb-warning: #b07a00;
+  --gb-danger: #c23b45;
+  --gb-user: #dce6ff;
+  --gb-agent: #eef1f6;
+  --gb-tool: #e4f0ea;
+  --gb-thought: #ece8f5;
+}
+
+[data-theme="dim"] {
+  --gb-surface: #12141a;
+  --gb-surface-raised: #1a1d26;
+  --gb-surface-overlay: #222632;
+  --gb-border: #333a4a;
+  --gb-ink: #d0d6e2;
+  --gb-ink-muted: #7e8799;
+  --gb-accent: #8aa4ff;
+  --gb-accent-dim: #5b78d4;
+  --gb-success: #45c98a;
+  --gb-warning: #e0a83a;
+  --gb-danger: #e87880;
+  --gb-user: #243050;
+  --gb-agent: #181c26;
+  --gb-tool: #1e2a24;
+  --gb-thought: #222030;
+}
+
+@theme {
+  --color-surface: var(--gb-surface);
+  --color-surface-raised: var(--gb-surface-raised);
+  --color-surface-overlay: var(--gb-surface-overlay);
+  --color-border: var(--gb-border);
+  --color-ink: var(--gb-ink);
+  --color-ink-muted: var(--gb-ink-muted);
+  --color-accent: var(--gb-accent);
+  --color-accent-dim: var(--gb-accent-dim);
+  --color-success: var(--gb-success);
+  --color-warning: var(--gb-warning);
+  --color-danger: var(--gb-danger);
+  --color-user: var(--gb-user);
+  --color-agent: var(--gb-agent);
+  --color-tool: var(--gb-tool);
+  --color-thought: var(--gb-thought);
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--gb-font-size);
+  background: var(--gb-surface);
+  color: var(--gb-ink);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--gb-border);
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gb-ink-muted);
+}
+
+.prose-chat {
+  line-height: 1.6;
+  word-break: break-word;
+}
+.prose-chat p {
+  margin: 0.4em 0;
+}
+.prose-chat pre {
+  background: var(--gb-surface);
+  border: 1px solid var(--gb-border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+.prose-chat code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+.prose-chat :not(pre) > code {
+  background: var(--gb-surface-overlay);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+.prose-chat ul,
+.prose-chat ol {
+  margin: 0.4em 0;
+  padding-left: 1.4em;
+}
+
+/* Modal shell shared by settings / shortcuts */
+.gb-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 16px;
+}
+.gb-modal {
+  width: 100%;
+  max-width: 520px;
+  max-height: min(80vh, 640px);
+  overflow: auto;
+  border-radius: 12px;
+  border: 1px solid var(--gb-border);
+  background: var(--gb-surface-raised);
+  color: var(--gb-ink);
+  padding: 20px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+}
