@@ -22,8 +22,9 @@ use fs_index::FileEntry;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use session::{
-    delete_session, list_sessions, list_subagents, load_history, load_signals, rename_session,
-    DiskSession, HistoryItem, SessionSignals, SubagentInfo,
+    delete_session, list_sessions, list_subagents, load_history, load_plan_md, load_plan_mode,
+    load_signals, rename_session, save_plan_md, DiskSession, HistoryItem, PlanModeState,
+    SessionSignals, SubagentInfo,
 };
 use tauri::Manager;
 
@@ -128,6 +129,19 @@ struct SetModelArgs {
 #[serde(rename_all = "camelCase")]
 struct SetEffortArgs {
     effort: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SetModeArgs {
+    mode_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SavePlanArgs {
+    session_id: String,
+    content: String,
 }
 
 #[tauri::command]
@@ -265,6 +279,21 @@ fn respond_permission(
     decision: PermissionDecision,
 ) -> AppResult<()> {
     handle.respond_permission(decision)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ElicitationDecision {
+    request_id: Value,
+    outcome: Value,
+}
+
+#[tauri::command]
+fn respond_elicitation(
+    handle: tauri::State<'_, Arc<AcpHandle>>,
+    decision: ElicitationDecision,
+) -> AppResult<()> {
+    handle.respond_elicitation(decision.request_id, decision.outcome)
 }
 
 #[tauri::command]
@@ -412,6 +441,32 @@ async fn set_session_effort(
     handle.set_effort(app, &args.effort).await
 }
 
+/// Set session mode via ACP `session/set_mode` (plan / ask / auto / always-approve / effort).
+#[tauri::command]
+async fn set_session_mode(
+    app: tauri::AppHandle,
+    handle: tauri::State<'_, Arc<AcpHandle>>,
+    args: SetModeArgs,
+) -> AppResult<SessionModelsState> {
+    // Reuse set_effort path — both map to session/set_mode with modeId.
+    handle.set_effort(app, &args.mode_id).await
+}
+
+#[tauri::command]
+fn get_session_plan(args: SessionIdArgs) -> AppResult<Option<String>> {
+    load_plan_md(&args.session_id)
+}
+
+#[tauri::command]
+fn save_session_plan(args: SavePlanArgs) -> AppResult<()> {
+    save_plan_md(&args.session_id, &args.content)
+}
+
+#[tauri::command]
+fn get_plan_mode_state(args: SessionIdArgs) -> AppResult<Option<PlanModeState>> {
+    load_plan_mode(&args.session_id)
+}
+
 #[tauri::command]
 async fn dispatch_session(
     app: tauri::AppHandle,
@@ -499,6 +554,7 @@ pub fn run() {
             fuzzy_project_files,
             cancel_turn,
             respond_permission,
+            respond_elicitation,
             list_disk_sessions,
             list_agent_sessions,
             authenticate_agent,
@@ -517,6 +573,10 @@ pub fn run() {
             get_session_models,
             set_session_model,
             set_session_effort,
+            set_session_mode,
+            get_session_plan,
+            save_session_plan,
+            get_plan_mode_state,
             dispatch_session,
             switch_session,
             pin_live_session,

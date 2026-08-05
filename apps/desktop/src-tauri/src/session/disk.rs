@@ -220,6 +220,71 @@ fn find_dir_named(dir: &Path, name: &str) -> Option<PathBuf> {
     None
 }
 
+/// Load `plan.md` for a session if present.
+pub fn load_plan_md(session_id: &str) -> AppResult<Option<String>> {
+    let dir = find_session_dir(session_id)?;
+    let Some(dir) = dir else {
+        return Ok(None);
+    };
+    let path = dir.join("plan.md");
+    if !path.is_file() {
+        return Ok(None);
+    }
+    let text = fs::read_to_string(&path)
+        .map_err(|e| AppError::Message(format!("read plan.md: {e}")))?;
+    Ok(Some(text))
+}
+
+/// Write `plan.md` for a session (creates file).
+pub fn save_plan_md(session_id: &str, content: &str) -> AppResult<()> {
+    let dir = find_session_dir(session_id)?
+        .ok_or_else(|| AppError::Message(format!("session not found: {session_id}")))?;
+    let path = dir.join("plan.md");
+    fs::write(&path, content).map_err(|e| AppError::Message(format!("write plan.md: {e}")))?;
+    Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanModeState {
+    pub state: String,
+    #[serde(default)]
+    pub was_previously_active: bool,
+    #[serde(default)]
+    pub awaiting_plan_approval: bool,
+}
+
+/// Read `plan_mode.json` if present.
+pub fn load_plan_mode(session_id: &str) -> AppResult<Option<PlanModeState>> {
+    let dir = find_session_dir(session_id)?;
+    let Some(dir) = dir else {
+        return Ok(None);
+    };
+    let path = dir.join("plan_mode.json");
+    if !path.is_file() {
+        return Ok(None);
+    }
+    let raw = fs::read_to_string(&path)
+        .map_err(|e| AppError::Message(format!("read plan_mode.json: {e}")))?;
+    let v: Value = serde_json::from_str(&raw)
+        .map_err(|e| AppError::Message(format!("parse plan_mode.json: {e}")))?;
+    Ok(Some(PlanModeState {
+        state: v
+            .get("state")
+            .and_then(|x| x.as_str())
+            .unwrap_or("Inactive")
+            .to_string(),
+        was_previously_active: v
+            .get("was_previously_active")
+            .and_then(|x| x.as_bool())
+            .unwrap_or(false),
+        awaiting_plan_approval: v
+            .get("awaiting_plan_approval")
+            .and_then(|x| x.as_bool())
+            .unwrap_or(false),
+    }))
+}
+
 /// Best-effort hydrate of scrollback from `updates.jsonl`.
 pub fn load_history(session_id: &str, limit: usize) -> AppResult<Vec<HistoryItem>> {
     let dir = find_session_dir(session_id)?

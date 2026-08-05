@@ -11,3 +11,5 @@ pub const TERMINAL_UPDATE: &str = "terminal://update";
 pub const TERMINAL_CLOSED: &str = "terminal://closed";
 /// Available models + current model/effort for the active session.
 pub const MODELS_UPDATE: &str = "session://models";
+/// ACP elicitation/create request for structured user input.
+pub const ELICITATION_REQUEST: &str = "session://elicitation";

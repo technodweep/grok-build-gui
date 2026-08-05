@@ -80,6 +80,11 @@ Update this checklist as features land.
 - [x] Phase A: history search panel (`/history`)
 - [x] Phase A: `/copy [n] [path]`
 - [x] Phase A: auto-compact system banners
+- [x] Phase B: `/plan`, `/view-plan`, plan.md viewer/editor
+- [x] Phase B: enter/exit plan mode permission UX
+- [x] Phase B: ACP `elicitation/create` form + URL modals (+ initialize capabilities)
+- [x] Phase B: status bar mode cycle Ask · Auto · Plan · Yolo
+- [x] Phase B: `/auto`, `/always-approve` client commands
 
 ## Packaging (PR8)
 

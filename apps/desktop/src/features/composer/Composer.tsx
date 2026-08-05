@@ -12,6 +12,8 @@ import {
   closeLiveSession,
   disconnectAgent,
   fuzzyProjectFiles,
+  getPlanModeState,
+  getSessionPlan,
   getSessionSignals,
   newSession,
   renameLiveSession,
@@ -70,6 +72,12 @@ export function Composer() {
   const setFindOpen = useAppStore((s) => s.setFindOpen);
   const setHistoryOpen = useAppStore((s) => s.setHistoryOpen);
   const rewindTurns = useAppStore((s) => s.rewindTurns);
+  const setSessionMode = useAppStore((s) => s.setSessionMode);
+  const setPlanOpen = useAppStore((s) => s.setPlanOpen);
+  const setPlanMarkdown = useAppStore((s) => s.setPlanMarkdown);
+  const setPlanModeState = useAppStore((s) => s.setPlanModeState);
+  const setAlwaysApprove = useAppStore((s) => s.setAlwaysApprove);
+  const sessionMode = useAppStore((s) => s.sessionMode);
 
   const [sending, setSending] = useState(false);
   const [palette, setPalette] = useState<PaletteMode>(null);
@@ -470,6 +478,101 @@ export function Composer() {
         });
         try {
           await dispatchSend("/fork", []);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e));
+        }
+        break;
+      }
+      case "plan": {
+        if (!ready) {
+          setError("Connect a session first");
+          break;
+        }
+        setSessionMode("plan");
+        if (argTrim) {
+          // /plan <description> — enter plan mode and start turn in one step
+          pushItem({
+            id: nextId(),
+            kind: "system",
+            text: "Entering plan mode with description…",
+          });
+          try {
+            await dispatchSend(`/plan ${argTrim}`, []);
+          } catch (e) {
+            setError(e instanceof Error ? e.message : String(e));
+          }
+        } else {
+          pushItem({
+            id: nextId(),
+            kind: "system",
+            text: "Plan mode pending — send your next prompt to activate (or /view-plan to open plan.md).",
+          });
+          try {
+            await dispatchSend("/plan", []);
+          } catch (e) {
+            setError(e instanceof Error ? e.message : String(e));
+          }
+        }
+        break;
+      }
+      case "view-plan":
+      case "show-plan":
+      case "plan-view": {
+        if (!session?.sessionId) {
+          setError("No active session");
+          break;
+        }
+        setPlanOpen(true);
+        try {
+          const [md, mode] = await Promise.all([
+            getSessionPlan(session.sessionId),
+            getPlanModeState(session.sessionId),
+          ]);
+          setPlanMarkdown(md);
+          setPlanModeState(mode);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e));
+        }
+        break;
+      }
+      case "auto": {
+        if (!ready) {
+          setError("Connect a session first");
+          break;
+        }
+        const next = sessionMode === "auto" ? "ask" : "auto";
+        setSessionMode(next);
+        pushItem({
+          id: nextId(),
+          kind: "system",
+          text: next === "auto" ? "Auto permission mode on…" : "Auto mode off (ask)…",
+        });
+        try {
+          await dispatchSend("/auto", []);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e));
+        }
+        break;
+      }
+      case "always-approve":
+      case "yolo": {
+        if (!ready) {
+          setError("Connect a session first");
+          break;
+        }
+        const next = sessionMode === "yolo" ? "ask" : "yolo";
+        setSessionMode(next);
+        setAlwaysApprove(next === "yolo");
+        pushItem({
+          id: nextId(),
+          kind: "system",
+          text:
+            next === "yolo"
+              ? "Always-approve (yolo) on — tools auto-run (deny rules still apply)."
+              : "Always-approve off (ask mode).",
+        });
+        try {
+          await dispatchSend("/always-approve", []);
         } catch (e) {
           setError(e instanceof Error ? e.message : String(e));
         }

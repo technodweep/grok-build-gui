@@ -114,7 +114,12 @@ pub fn initialize_params() -> Value {
                 "readTextFile": true,
                 "writeTextFile": true
             },
-            "terminal": true
+            "terminal": true,
+            // ACP elicitation (form + URL modes). Explicit objects required per ACP v2.
+            "elicitation": {
+                "form": {},
+                "url": {}
+            }
         },
         "clientInfo": {
             "name": "grok-build-gui",
@@ -172,6 +177,8 @@ mod tests {
         assert_eq!(p["clientCapabilities"]["terminal"], true);
         assert_eq!(p["clientCapabilities"]["fs"]["readTextFile"], true);
         assert_eq!(p["clientCapabilities"]["fs"]["writeTextFile"], true);
+        assert!(p["clientCapabilities"]["elicitation"]["form"].is_object());
+        assert!(p["clientCapabilities"]["elicitation"]["url"].is_object());
     }
 
     #[test]

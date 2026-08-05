@@ -238,6 +238,50 @@ export interface PermissionRequest {
   raw?: unknown;
 }
 
+/** Session interaction mode cycle (status bar Shift+Tab parity). */
+export type SessionMode = "ask" | "auto" | "plan" | "yolo";
+
+/** Disk `plan_mode.json` snapshot. */
+export interface PlanModeState {
+  state: string;
+  wasPreviouslyActive?: boolean;
+  awaitingPlanApproval?: boolean;
+}
+
+/** ACP `elicitation/create` request (form or url mode). */
+export interface ElicitationRequest {
+  requestId: unknown;
+  sessionId?: string | null;
+  mode?: string | null;
+  message?: string | null;
+  requestedSchema?: ElicitationSchema | null;
+  url?: string | null;
+  elicitationId?: string | null;
+  raw?: unknown;
+}
+
+export interface ElicitationSchema {
+  type?: string;
+  properties?: Record<string, ElicitationProperty>;
+  required?: string[];
+  [key: string]: unknown;
+}
+
+export interface ElicitationProperty {
+  type?: string;
+  title?: string;
+  description?: string;
+  enum?: Array<string | number | boolean>;
+  default?: unknown;
+  minimum?: number;
+  maximum?: number;
+  minLength?: number;
+  maxLength?: number;
+  format?: string;
+  items?: { type?: string; enum?: Array<string | number | boolean> };
+  [key: string]: unknown;
+}
+
 /** Agent-advertised slash command. */
 export interface SlashCommand {
   name: string;

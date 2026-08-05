@@ -5,6 +5,8 @@ import { Scrollback } from "./features/chat/Scrollback";
 import { StatusBar } from "./features/chat/StatusBar";
 import { Dashboard } from "./features/dashboard/Dashboard";
 import { PermissionModal } from "./features/permissions/PermissionModal";
+import { ElicitationModal } from "./features/plan/ElicitationModal";
+import { PlanViewer } from "./features/plan/PlanViewer";
 import { SubagentsPanel } from "./features/chat/SubagentsPanel";
 import { TerminalPanel } from "./features/chat/TerminalPanel";
 import { ReconnectBanner } from "./features/chat/ReconnectBanner";
@@ -30,6 +32,8 @@ import { applyTheme } from "./shared/theme";
 import { toolOutputFromUpdate } from "./shared/toolContent";
 import type {
   AgentStatus,
+  ElicitationRequest,
+  ElicitationSchema,
   LiveSession,
   PermissionRequest,
   PlanEntry,
@@ -89,6 +93,34 @@ function normalizePermission(payload: Record<string, unknown>): PermissionReques
   };
 }
 
+function normalizeElicitation(payload: Record<string, unknown>): ElicitationRequest {
+  const requestId = payload.requestId ?? payload.request_id ?? payload.id;
+  const params = (payload.params as Record<string, unknown>) ?? payload;
+  const sessionId = (params.sessionId ?? params.session_id) as string | undefined;
+  const mode = (params.mode as string) ?? null;
+  const message = (params.message as string) ?? null;
+  const requestedSchema = (params.requestedSchema ?? params.requested_schema) as
+    | ElicitationSchema
+    | null
+    | undefined;
+  const url = (params.url as string) ?? null;
+  const elicitationId = (params.elicitationId ?? params.elicitation_id) as
+    | string
+    | null
+    | undefined;
+
+  return {
+    requestId,
+    sessionId,
+    mode,
+    message,
+    requestedSchema: requestedSchema ?? null,
+    url,
+    elicitationId: elicitationId ?? null,
+    raw: payload,
+  };
+}
+
 export default function App() {
   const env = useAppStore((s) => s.env);
   const session = useAppStore((s) => s.session);
@@ -103,7 +135,10 @@ export default function App() {
   const setBusy = useAppStore((s) => s.setBusy);
   const enqueuePermission = useAppStore((s) => s.enqueuePermission);
   const clearPermissions = useAppStore((s) => s.clearPermissions);
+  const enqueueElicitation = useAppStore((s) => s.enqueueElicitation);
+  const clearElicitations = useAppStore((s) => s.clearElicitations);
   const setSlashCommands = useAppStore((s) => s.setSlashCommands);
+  const setSessionMode = useAppStore((s) => s.setSessionMode);
   const setLiveSessions = useAppStore((s) => s.setLiveSessions);
   const setSession = useAppStore((s) => s.setSession);
   const setView = useAppStore((s) => s.setView);
@@ -229,6 +264,7 @@ export default function App() {
         setStatus(ev.payload);
         if (ev.payload === "disconnected" || ev.payload === "error") {
           clearPermissions();
+          clearElicitations();
           setLiveSessions([]);
           clearTerminals();
           setModels(null);
@@ -401,6 +437,25 @@ export default function App() {
               (update as { modelId?: string }).modelId ||
               (update as { currentModelId?: string }).currentModelId;
             if (mid) setModelId(String(mid));
+            // Some agents surface permission/plan mode here.
+            const modeId =
+              (update as { modeId?: string }).modeId ||
+              (update as { currentModeId?: string }).currentModeId ||
+              (update as { mode?: string }).mode;
+            if (modeId) {
+              const m = String(modeId).toLowerCase();
+              if (m.includes("plan")) setSessionMode("plan");
+              else if (m.includes("auto")) setSessionMode("auto");
+              else if (
+                m.includes("yolo") ||
+                m.includes("always") ||
+                m.includes("bypass")
+              ) {
+                setSessionMode("yolo");
+              } else if (m.includes("ask") || m === "default") {
+                setSessionMode("ask");
+              }
+            }
           }
         });
       }),
@@ -427,6 +482,17 @@ export default function App() {
           if (useAppStore.getState().permissions.length >= 1) {
             void notify(`Grok Build · ${title}`, body);
           }
+        }
+      }),
+    );
+
+    track(
+      listen<Record<string, unknown>>("session://elicitation", (ev) => {
+        const req = normalizeElicitation(ev.payload ?? {});
+        enqueueElicitation(req);
+        const title = req.message?.slice(0, 80) || "Input required";
+        if (appProbablyBackground() || useAppStore.getState().view === "dashboard") {
+          void notify(`Grok Build · ${title}`, "Answer the form to continue.");
         }
       }),
     );
@@ -464,6 +530,9 @@ export default function App() {
     setBusy,
     enqueuePermission,
     clearPermissions,
+    enqueueElicitation,
+    clearElicitations,
+    setSessionMode,
     setSlashCommands,
     setLiveSessions,
     setSession,
@@ -513,6 +582,8 @@ export default function App() {
         <Welcome env={env} />
       )}
       <PermissionModal />
+      <ElicitationModal />
+      <PlanViewer />
       <SettingsModal />
       <ModelPickerModal />
       <HistoryPanel />

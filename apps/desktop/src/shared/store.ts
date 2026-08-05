@@ -2,12 +2,15 @@ import { create } from "zustand";
 import type {
   AgentStatus,
   AppView,
+  ElicitationRequest,
   EnvironmentInfo,
   LiveSession,
   PermissionRequest,
   PlanEntry,
+  PlanModeState,
   QueuedPrompt,
   ScrollItem,
+  SessionMode,
   SessionModelsState,
   SessionSignals,
   SessionState,
@@ -68,6 +71,16 @@ interface AppState {
   findQuery: string;
   findIndex: number;
   historyOpen: boolean;
+  /** Session mode cycle: ask · auto · plan · yolo (status bar). */
+  sessionMode: SessionMode;
+  /** Plan.md viewer/editor open. */
+  planOpen: boolean;
+  /** Cached plan.md text (viewer). */
+  planMarkdown: string | null;
+  /** Disk plan_mode.json snapshot. */
+  planModeState: PlanModeState | null;
+  /** ACP elicitation/create queue. */
+  elicitations: ElicitationRequest[];
 
   setEnv: (env: EnvironmentInfo | null) => void;
   setStatus: (status: AgentStatus) => void;
@@ -134,6 +147,13 @@ interface AppState {
   setFindQuery: (q: string) => void;
   setFindIndex: (i: number) => void;
   setHistoryOpen: (v: boolean) => void;
+  setSessionMode: (m: SessionMode) => void;
+  setPlanOpen: (v: boolean) => void;
+  setPlanMarkdown: (md: string | null) => void;
+  setPlanModeState: (s: PlanModeState | null) => void;
+  enqueueElicitation: (req: ElicitationRequest) => void;
+  dequeueElicitation: () => void;
+  clearElicitations: () => void;
   /**
    * Drop the last `turns` user turns (and everything after the cut point).
    * Returns number of items removed.
@@ -220,6 +240,30 @@ const CLIENT_COMMANDS: SlashCommand[] = [
     source: "client",
   },
   {
+    name: "plan",
+    description: "Enter plan mode (optional description starts the turn)",
+    inputHint: "description?",
+    source: "client",
+  },
+  {
+    name: "view-plan",
+    description: "View / edit session plan.md",
+    source: "client",
+  },
+  { name: "show-plan", description: "Alias for /view-plan", source: "client" },
+  { name: "plan-view", description: "Alias for /view-plan", source: "client" },
+  {
+    name: "auto",
+    description: "Toggle auto permission mode (agent)",
+    source: "client",
+  },
+  {
+    name: "always-approve",
+    description: "Toggle always-approve / yolo (agent)",
+    source: "client",
+  },
+  { name: "yolo", description: "Alias for /always-approve", source: "client" },
+  {
     name: "rename",
     description: "Rename the current session",
     inputHint: "title",
@@ -305,6 +349,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   findQuery: "",
   findIndex: 0,
   historyOpen: false,
+  sessionMode: "ask",
+  planOpen: false,
+  planMarkdown: null,
+  planModeState: null,
+  elicitations: [],
 
   setEnv: (env) => set({ env }),
   setStatus: (status) => set({ status }),
@@ -317,6 +366,11 @@ export const useAppStore = create<AppState>((set, get) => ({
         modelId: null,
         effort: null,
         models: null,
+        sessionMode: "ask",
+        planOpen: false,
+        planMarkdown: null,
+        planModeState: null,
+        elicitations: [],
       });
       return;
     }
@@ -576,6 +630,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   setFindQuery: (findQuery) => set({ findQuery }),
   setFindIndex: (findIndex) => set({ findIndex }),
   setHistoryOpen: (historyOpen) => set({ historyOpen }),
+  setSessionMode: (sessionMode) => set({ sessionMode }),
+  setPlanOpen: (planOpen) => set({ planOpen }),
+  setPlanMarkdown: (planMarkdown) => set({ planMarkdown }),
+  setPlanModeState: (planModeState) => set({ planModeState }),
+  enqueueElicitation: (req) =>
+    set((s) => ({ elicitations: [...s.elicitations, req] })),
+  dequeueElicitation: () =>
+    set((s) => ({ elicitations: s.elicitations.slice(1) })),
+  clearElicitations: () => set({ elicitations: [] }),
 
   rewindTurns: (turns = 1) => {
     const n = Math.max(1, Math.floor(turns));

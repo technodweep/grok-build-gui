@@ -1,11 +1,42 @@
 import { type CSSProperties } from "react";
 import {
   disconnectAgent,
+  getPlanModeState,
+  getSessionPlan,
   getSessionSignals,
   newSession,
   sendPrompt,
 } from "../../shared/api";
 import { nextId, useAppStore } from "../../shared/store";
+import type { SessionMode } from "../../shared/types";
+
+const MODE_CYCLE: SessionMode[] = ["ask", "auto", "plan", "yolo"];
+
+function modeLabel(m: SessionMode): string {
+  switch (m) {
+    case "ask":
+      return "Ask";
+    case "auto":
+      return "Auto";
+    case "plan":
+      return "Plan";
+    case "yolo":
+      return "Yolo";
+  }
+}
+
+function modeColor(m: SessionMode): string {
+  switch (m) {
+    case "ask":
+      return "var(--gb-ink-muted)";
+    case "auto":
+      return "var(--gb-accent)";
+    case "plan":
+      return "var(--gb-warning)";
+    case "yolo":
+      return "var(--gb-danger)";
+  }
+}
 
 export function StatusBar() {
   const status = useAppStore((s) => s.status);
@@ -38,6 +69,12 @@ export function StatusBar() {
   const setHistoryOpen = useAppStore((s) => s.setHistoryOpen);
   const rewindTurns = useAppStore((s) => s.rewindTurns);
   const setBusy = useAppStore((s) => s.setBusy);
+  const sessionMode = useAppStore((s) => s.sessionMode);
+  const setSessionMode = useAppStore((s) => s.setSessionMode);
+  const setPlanOpen = useAppStore((s) => s.setPlanOpen);
+  const setPlanMarkdown = useAppStore((s) => s.setPlanMarkdown);
+  const setPlanModeState = useAppStore((s) => s.setPlanModeState);
+  const setAlwaysApprove = useAppStore((s) => s.setAlwaysApprove);
 
   const goHome = async () => {
     await disconnectAgent();
@@ -143,6 +180,77 @@ export function StatusBar() {
     }
   };
 
+  const applyMode = async (next: SessionMode) => {
+    if (!session || status !== "ready") return;
+    const prev = sessionMode;
+    setSessionMode(next);
+    // Track yolo locally for reconnect defaults; agent slash owns live permission mode.
+    if (next === "yolo") setAlwaysApprove(true);
+    else if (prev === "yolo") setAlwaysApprove(false);
+
+    const slash =
+      next === "plan"
+        ? "/plan"
+        : next === "auto"
+          ? "/auto"
+          : next === "yolo"
+            ? "/always-approve"
+            : prev === "plan"
+              ? "/plan"
+              : prev === "auto"
+                ? "/auto"
+                : prev === "yolo"
+                  ? "/always-approve"
+                  : null;
+
+    pushItem({
+      id: nextId(),
+      kind: "system",
+      text: `Mode → ${modeLabel(next)}${slash ? ` (${slash})` : ""}`,
+    });
+
+    if (!slash) return;
+    // Leaving plan via toggle: agent /plan toggles off when already pending/active.
+    try {
+      if (!busy) {
+        setBusy(true);
+        await sendPrompt(slash);
+      } else {
+        // Queue-free path: still try; agent may accept mode changes mid-turn for some modes.
+        await sendPrompt(slash);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setSessionMode(prev);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const cycleMode = () => {
+    const idx = MODE_CYCLE.indexOf(sessionMode);
+    const next = MODE_CYCLE[(idx + 1) % MODE_CYCLE.length];
+    void applyMode(next);
+  };
+
+  const openPlan = async () => {
+    if (!session) return;
+    setPlanOpen(true);
+    try {
+      const [md, mode] = await Promise.all([
+        getSessionPlan(session.sessionId),
+        getPlanModeState(session.sessionId),
+      ]);
+      setPlanMarkdown(md);
+      setPlanModeState(mode);
+      if (mode?.state && /active|pending/i.test(mode.state)) {
+        setSessionMode("plan");
+      }
+    } catch {
+      /* best-effort */
+    }
+  };
+
   const btn: CSSProperties = {
     borderRadius: 6,
     border: "1px solid var(--gb-border)",
@@ -216,6 +324,30 @@ export function StatusBar() {
                 · {effort}
               </span>
             ) : null}
+          </button>
+        ) : null}
+        {session ? (
+          <button
+            type="button"
+            onClick={cycleMode}
+            disabled={status !== "ready"}
+            title="Cycle mode: Ask · Auto · Plan · Yolo (TUI Shift+Tab). Click to advance."
+            style={{
+              fontSize: 11,
+              fontWeight: 600,
+              color: modeColor(sessionMode),
+              fontFamily: "ui-monospace, Menlo, monospace",
+              border: `1px solid ${modeColor(sessionMode)}`,
+              borderRadius: 6,
+              background: "var(--gb-surface)",
+              padding: "2px 8px",
+              cursor: status !== "ready" ? "not-allowed" : "pointer",
+              opacity: status !== "ready" ? 0.5 : 1,
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
+            }}
+          >
+            {modeLabel(sessionMode)}
           </button>
         ) : null}
         {used != null || usagePct != null ? (
@@ -341,6 +473,19 @@ export function StatusBar() {
         ) : null}
         {session ? (
           <>
+            <button
+              type="button"
+              style={{
+                ...btn,
+                borderColor:
+                  sessionMode === "plan" ? "var(--gb-warning)" : "var(--gb-border)",
+                color: sessionMode === "plan" ? "var(--gb-warning)" : "var(--gb-ink)",
+              }}
+              onClick={() => void openPlan()}
+              title="View / edit plan.md (/view-plan). Enter plan mode with /plan."
+            >
+              Plan
+            </button>
             <button
               type="button"
               style={btn}

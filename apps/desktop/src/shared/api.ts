@@ -174,6 +174,44 @@ export function setSessionEffort(effort: string) {
   });
 }
 
+/** ACP `session/set_mode` — effort levels or permission/plan mode ids when supported. */
+export function setSessionMode(modeId: string) {
+  return invoke<SessionModelsState>("set_session_mode", {
+    args: { modeId },
+  });
+}
+
+export function getSessionPlan(sessionId: string) {
+  return invoke<string | null>("get_session_plan", {
+    args: { sessionId },
+  });
+}
+
+export function saveSessionPlan(sessionId: string, content: string) {
+  return invoke<void>("save_session_plan", {
+    args: { sessionId, content },
+  });
+}
+
+export function getPlanModeState(sessionId: string) {
+  return invoke<import("./types").PlanModeState | null>("get_plan_mode_state", {
+    args: { sessionId },
+  });
+}
+
+/** Resolve ACP `elicitation/create` with action accept|decline|cancel (+ content). */
+export function respondElicitation(decision: {
+  requestId: unknown;
+  outcome: Record<string, unknown>;
+}) {
+  return invoke<void>("respond_elicitation", {
+    decision: {
+      requestId: decision.requestId,
+      outcome: decision.outcome,
+    },
+  });
+}
+
 export function dispatchSession(args: {
   cwd?: string | null;
   prompt?: string | null;

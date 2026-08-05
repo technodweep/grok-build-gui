@@ -13,6 +13,7 @@ function statusColor(status: string): string {
 
 export function PlanStrip() {
   const items = useAppStore((s) => s.items);
+  const setPlanOpen = useAppStore((s) => s.setPlanOpen);
   const plan = items.find((i) => i.kind === "plan");
   if (!plan || plan.kind !== "plan" || plan.entries.length === 0) return null;
 
@@ -27,11 +28,22 @@ export function PlanStrip() {
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      onClick={() => setPlanOpen(true)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          setPlanOpen(true);
+        }
+      }}
+      title="Open plan.md viewer (/view-plan)"
       style={{
         flexShrink: 0,
         borderBottom: "1px solid var(--gb-border)",
         background: "var(--gb-surface-raised)",
         padding: "8px 16px",
+        cursor: "pointer",
       }}
     >
       <div

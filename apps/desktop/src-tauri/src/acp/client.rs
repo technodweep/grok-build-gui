@@ -161,6 +161,8 @@ pub struct AcpHandle {
     always_approve: Mutex<bool>,
     /// request_id string key → waiter
     pending_permissions: Arc<Mutex<HashMap<String, PendingPermission>>>,
+    /// elicitation request id → waiter for JSON outcome
+    pending_elicitations: Arc<Mutex<HashMap<String, oneshot::Sender<Value>>>>,
     terminals: Arc<TerminalManager>,
 }
 
@@ -186,6 +188,7 @@ impl AcpHandle {
             next_id: AtomicU64::new(1),
             always_approve: Mutex::new(false),
             pending_permissions: Arc::new(Mutex::new(HashMap::new())),
+            pending_elicitations: Arc::new(Mutex::new(HashMap::new())),
             terminals: TerminalManager::new(),
         }
     }
@@ -451,6 +454,7 @@ impl AcpHandle {
         let handle_for_status = Arc::clone(self);
         let always_approve = opts.always_approve;
         let pending_perms = self.pending_permissions.clone();
+        let pending_elicit = self.pending_elicitations.clone();
         let cwd_reader = cwd_for_handlers.clone();
         let terminals = self.terminals.clone();
 
@@ -547,6 +551,7 @@ impl AcpHandle {
                             params,
                             always_approve,
                             &pending_perms,
+                            &pending_elicit,
                             &cwd_reader,
                             &terminals,
                         )
@@ -1145,6 +1150,20 @@ impl AcpHandle {
         let _ = waiter.tx.send(decision.option_id);
         Ok(())
     }
+
+    /// Resolve a pending elicitation with a full JSON-RPC result payload.
+    pub fn respond_elicitation(&self, request_id: Value, outcome: Value) -> AppResult<()> {
+        let key = request_id_key(&request_id);
+        let waiter = self
+            .pending_elicitations
+            .lock()
+            .remove(&key)
+            .ok_or_else(|| {
+                AppError::Message("No pending elicitation for that request id".into())
+            })?;
+        let _ = waiter.send(outcome);
+        Ok(())
+    }
 }
 
 fn chrono_like_now() -> String {
@@ -1272,6 +1291,7 @@ async fn handle_agent_request(
     params: Option<Value>,
     always_approve: bool,
     pending_perms: &Arc<Mutex<HashMap<String, PendingPermission>>>,
+    pending_elicit: &Arc<Mutex<HashMap<String, oneshot::Sender<Value>>>>,
     cwd: &std::path::Path,
     terminals: &Arc<TerminalManager>,
 ) {
@@ -1323,6 +1343,31 @@ async fn handle_agent_request(
                 };
 
             let reply = protocol::response(id, permission_response(&option_id));
+            let _ = cmd_tx.send(AgentCommand::Write(reply));
+        }
+        "elicitation/create" => {
+            let payload = json!({
+                "requestId": id,
+                "params": params.clone().unwrap_or(Value::Null),
+            });
+            let (tx, rx) = oneshot::channel();
+            let key = request_id_key(&id);
+            pending_elicit.lock().insert(key, tx);
+            let _ = app.emit(events::ELICITATION_REQUEST, &payload);
+            let outcome = match tokio::time::timeout(
+                std::time::Duration::from_secs(600),
+                rx,
+            )
+            .await
+            {
+                Ok(Ok(v)) => v,
+                Ok(Err(_)) => json!({ "action": "cancel" }),
+                Err(_) => {
+                    tracing::warn!("elicitation timed out");
+                    json!({ "action": "cancel" })
+                }
+            };
+            let reply = protocol::response(id, outcome);
             let _ = cmd_tx.send(AgentCommand::Write(reply));
         }
         "fs/read_text_file" => {

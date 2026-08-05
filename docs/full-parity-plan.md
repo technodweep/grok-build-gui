@@ -2,7 +2,7 @@
 
 **Goal:** Make this desktop app a first-class **GUI for everything you can do with Grok Build**, without reimplementing the agent.
 
-**Last updated:** 2026-08-04  
+**Last updated:** 2026-08-05  
 **Baseline:** Tauri 2 + React/TS GUI speaking ACP over `grok agent stdio` (Grok CLI ≥ 0.2.x).
 
 ---
@@ -65,11 +65,11 @@
 | Streaming agent messages | **Done** | `agent_message_chunk` |
 | Thinking blocks | **Done** | Collapsible |
 | Tool calls + updates | **Partial** | Cards + diffs; more content types still |
-| Plans (live entries) | **Partial** | Cards + sticky strip; no plan-mode lifecycle |
+| Plans (live entries) | **Done** | Cards + sticky strip + plan.md viewer |
 | Cancel / Stop turn | **Done** | `session/cancel` + local waiter unblock |
 | Permission prompts | **Done** | Modal; allow once / always / deny |
 | Yolo (always approve) | **Done** | Connect flag + settings |
-| Auto permission mode | **Gap** | TUI `/auto` + Shift+Tab cycle |
+| Auto permission mode | **Done** | `/auto` + status bar mode cycle |
 | Prompt queue | **Done** | |
 | Multiline composer | **Done** | |
 | Prompt history ↑/↓ | **Partial** | No fuzzy `/history` panel |
@@ -113,11 +113,11 @@
 |---------|--------|------------------|
 | Model picker | **Done** | `session/set_model` + picker |
 | Effort levels | **Done** | `session/set_mode` for effort |
-| Plan mode enter/exit | **Gap** | Tools `enter_plan_mode` / `exit_plan_mode` + UI |
-| View / edit plan file | **Gap** | Read `plan.md` in session dir; approval UI |
-| Ask-user questions (elicitation) | **Gap** | ACP elicitation forms |
-| Mode cycle (Normal / Plan / Yolo) | **Gap** | Status bar control |
-| Permission mode: auto | **Gap** | |
+| Plan mode enter/exit | **Done** | `/plan`, permission UX for enter/exit_plan_mode |
+| View / edit plan file | **Done** | `plan.md` viewer/editor + exit-plan approval modal |
+| Ask-user questions (elicitation) | **Done** | ACP `elicitation/create` form + URL modals |
+| Mode cycle (Normal / Plan / Yolo) | **Done** | Status bar: Ask · Auto · Plan · Yolo |
+| Permission mode: auto | **Done** | Via mode cycle + `/auto` |
 
 ### 4.4 Context, usage, monitoring
 
@@ -258,6 +258,15 @@ Build in vertical slices that stay shippable. Each phase ends with: checklist up
 | B3 | **Exit plan approval** | Modal for `exit_plan_mode` with approve / revise |
 | B4 | **Elicitation forms** | ACP `elicitation/create` → dynamic form modal |
 | B5 | **Mode cycle control** | Status bar: Ask · Auto · Plan · Yolo |
+
+**Phase B status (2026-08-05):** Implemented.
+- `/plan` / `/view-plan` / `/auto` / `/always-approve` client commands
+- Status bar mode chip cycles Ask · Auto · Plan · Yolo (agent slash)
+- Plan.md viewer/editor (`get_session_plan` / `save_session_plan`)
+- Exit-plan permission modal with plan preview + approve / request changes / quit
+- Enter-plan permission chrome
+- ACP `elicitation/create` form + URL consent modal; client advertises form+url capabilities
+- Sticky plan strip opens plan viewer on click
 
 **Exit criteria:** Full plan-mode loop works end-to-end in the GUI.
 
