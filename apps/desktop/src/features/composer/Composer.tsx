@@ -19,7 +19,12 @@ import {
   setSessionEffort,
   setSessionModel,
 } from "../../shared/api";
-import { conversationText, exportConversationToFile } from "../../shared/export";
+import {
+  conversationText,
+  exportConversationToFile,
+  writeTextFile,
+} from "../../shared/export";
+import { asDisplayText } from "../../shared/text";
 import { nextId, useAppStore } from "../../shared/store";
 import type { FileEntry, SlashCommand } from "../../shared/types";
 
@@ -60,6 +65,11 @@ export function Composer() {
   const loadScrollForSession = useAppStore((s) => s.loadScrollForSession);
   const promptHistory = useAppStore((s) => s.promptHistory);
   const pushPromptHistory = useAppStore((s) => s.pushPromptHistory);
+  const multilineMode = useAppStore((s) => s.multilineMode);
+  const setMultilineMode = useAppStore((s) => s.setMultilineMode);
+  const setFindOpen = useAppStore((s) => s.setFindOpen);
+  const setHistoryOpen = useAppStore((s) => s.setHistoryOpen);
+  const rewindTurns = useAppStore((s) => s.rewindTurns);
 
   const [sending, setSending] = useState(false);
   const [palette, setPalette] = useState<PaletteMode>(null);
@@ -317,16 +327,151 @@ export function Composer() {
       }
       case "copy": {
         const agentMsgs = items.filter((it) => it.kind === "agent");
-        const last = agentMsgs[agentMsgs.length - 1];
-        if (!last || last.kind !== "agent") {
+        if (agentMsgs.length === 0) {
           setError("No agent reply to copy");
           break;
         }
+        // /copy | /copy 2 | /copy out.txt | /copy 2 ~/export.md
+        const parts = argTrim.split(/\s+/).filter(Boolean);
+        let n = 1;
+        let filePath: string | null = null;
+        if (parts.length === 1) {
+          if (/^\d+$/.test(parts[0])) n = parseInt(parts[0], 10);
+          else filePath = parts[0];
+        } else if (parts.length >= 2) {
+          if (/^\d+$/.test(parts[0])) {
+            n = parseInt(parts[0], 10);
+            filePath = parts.slice(1).join(" ");
+          } else {
+            filePath = parts.join(" ");
+          }
+        }
+        n = Math.max(1, n);
+        const idx = agentMsgs.length - n;
+        if (idx < 0) {
+          setError(`Only ${agentMsgs.length} agent reply(ies); cannot copy #${n}`);
+          break;
+        }
+        const msg = agentMsgs[idx];
+        const text =
+          msg && msg.kind === "agent" ? asDisplayText(msg.text) : "";
+        if (!text) {
+          setError("Empty agent reply");
+          break;
+        }
         try {
-          await navigator.clipboard.writeText(last.text);
-          pushItem({ id: nextId(), kind: "system", text: "Last agent reply copied." });
-        } catch {
-          setError("Clipboard write failed");
+          if (filePath) {
+            let path = filePath;
+            if (path.startsWith("~/") || path === "~") {
+              const grokHome = useAppStore.getState().env?.grokHome ?? "";
+              // grokHome is typically /home/user/.grok → parent is $HOME
+              const home = grokHome.replace(/\/\.grok\/?$/, "") || grokHome;
+              path = path === "~" ? home : `${home}${path.slice(1)}`;
+            } else if (!path.startsWith("/")) {
+              const cwd = projectCwd || session?.cwd || "";
+              path = cwd ? `${cwd.replace(/\/$/, "")}/${path}` : path;
+            }
+            await writeTextFile(path, text);
+            pushItem({
+              id: nextId(),
+              kind: "system",
+              text: `Copied agent reply #${n} → ${path}`,
+            });
+          } else {
+            await navigator.clipboard.writeText(text);
+            pushItem({
+              id: nextId(),
+              kind: "system",
+              text:
+                n === 1
+                  ? "Last agent reply copied."
+                  : `Agent reply #${n} (from end) copied.`,
+            });
+          }
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e));
+        }
+        break;
+      }
+      case "compact": {
+        if (!ready) {
+          setError("Connect a session first");
+          break;
+        }
+        if (turnActive) {
+          setError("Wait for the current turn to finish (or Stop) before compacting");
+          break;
+        }
+        const note = argTrim;
+        const cmd = note ? `/compact ${note}` : "/compact";
+        pushItem({
+          id: nextId(),
+          kind: "system",
+          text: note
+            ? `Compacting context (keep: ${note})…`
+            : "Compacting context…",
+        });
+        try {
+          await dispatchSend(cmd, []);
+          if (session?.sessionId) {
+            void getSessionSignals(session.sessionId)
+              .then(setSignals)
+              .catch(() => undefined);
+            setContextOpen(true);
+          }
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e));
+        }
+        break;
+      }
+      case "rewind":
+      case "undo": {
+        if (!ready) {
+          setError("Connect a session first");
+          break;
+        }
+        if (turnActive) {
+          setError("Stop the current turn before rewind");
+          break;
+        }
+        const turns = /^\d+$/.test(argTrim) ? parseInt(argTrim, 10) : 1;
+        const removed = rewindTurns(turns);
+        if (removed === 0) {
+          setError("Nothing to rewind");
+          break;
+        }
+        pushItem({
+          id: nextId(),
+          kind: "system",
+          text: `Local scroll rewound (${removed} items, ${turns} turn${turns > 1 ? "s" : ""}). Asking agent to /rewind…`,
+        });
+        try {
+          // Agent-side rewind (slash). Local view already truncated.
+          await sendPrompt(turns > 1 ? `/rewind ${turns}` : "/rewind", []);
+        } catch (e) {
+          // Local rewind kept even if agent command fails
+          setError(e instanceof Error ? e.message : String(e));
+        }
+        break;
+      }
+      case "fork": {
+        if (!ready) {
+          setError("Connect a session first");
+          break;
+        }
+        if (turnActive) {
+          setError("Stop the current turn before fork");
+          break;
+        }
+        pushItem({
+          id: nextId(),
+          kind: "system",
+          text: "Forking session via agent /fork… (new session appears in dashboard when ready)",
+        });
+        try {
+          await dispatchSend("/fork", []);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e));
         }
         break;
       }
@@ -441,15 +586,30 @@ export function Composer() {
           setError("No prompt history yet");
           break;
         }
-        const last = promptHistory[promptHistory.length - 1];
-        setDraft(last);
-        setHistIdx(promptHistory.length - 1);
-        histDraftBackup.current = "";
-        taRef.current?.focus();
+        setHistoryOpen(true);
+        break;
+      }
+      case "find": {
+        setFindOpen(true);
+        break;
+      }
+      case "multiline":
+      case "ml": {
+        const next = !multilineMode;
+        setMultilineMode(next);
+        try {
+          const { getGuiSettings, setGuiSettings } = await import("../../shared/api");
+          const s = await getGuiSettings();
+          await setGuiSettings({ ...s, multilineMode: next });
+        } catch {
+          /* persist best-effort */
+        }
         pushItem({
           id: nextId(),
           kind: "system",
-          text: `Recalled last prompt (${promptHistory.length} in history). Use ↑/↓ when input is empty.`,
+          text: next
+            ? "Multiline on · Enter = newline, Ctrl+Enter = send"
+            : "Multiline off · Enter = send, Shift+Enter = newline",
         });
         break;
       }
@@ -559,12 +719,33 @@ export function Composer() {
   ]);
 
   const onCancel = useCallback(async () => {
+    // Unlock UI immediately — do not wait for the in-flight session/prompt RPC.
+    setSending(false);
+    setBusy(false);
+    useAppStore.getState().clearPromptQueue();
+    pushItem({
+      id: nextId(),
+      kind: "system",
+      text: "Cancelling turn…",
+    });
     try {
       await cancelTurn();
+      pushItem({
+        id: nextId(),
+        kind: "system",
+        text: "Turn cancelled.",
+      });
     } catch (e) {
+      // Even if the agent ignores cancel, local waiters should already be released.
       setError(e instanceof Error ? e.message : String(e));
+      pushItem({
+        id: nextId(),
+        kind: "system",
+        text: "Cancel requested (agent may still wind down).",
+        level: "error",
+      });
     }
-  }, [setError]);
+  }, [setError, setBusy, pushItem]);
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (palette && paletteItems.length > 0) {
@@ -645,9 +826,20 @@ export function Composer() {
       return;
     }
 
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      void onSend();
+    if (e.key === "Enter") {
+      if (multilineMode) {
+        // Enter = newline; Ctrl/Cmd+Enter = send
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          void onSend();
+        }
+        return;
+      }
+      // Default: Enter = send; Shift+Enter = newline
+      if (!e.shiftKey) {
+        e.preventDefault();
+        void onSend();
+      }
     }
   };
 
@@ -833,7 +1025,9 @@ export function Composer() {
           }
           placeholder={
             ready
-              ? "Message Grok…  / · @ · ↑ history · Enter send · Shift+Enter newline"
+              ? multilineMode
+                ? "Message Grok…  / · @ · ↑ history · Enter newline · Ctrl+Enter send"
+                : "Message Grok…  / · @ · ↑ history · Enter send · Shift+Enter newline"
               : "Connect to a project to start chatting"
           }
           value={draft}
@@ -855,15 +1049,27 @@ export function Composer() {
               : ready
                 ? histIdx >= 0
                   ? `History ${histIdx + 1}/${promptHistory.length}`
-                  : "Ready"
+                  : multilineMode
+                    ? "Ready · multiline"
+                    : "Ready"
                 : "Not connected"}
           </p>
           <div style={{ display: "flex", gap: 8 }}>
-            {turnActive && (
-              <button type="button" onClick={() => void onCancel()} style={secondaryBtn}>
-                Cancel
+            {turnActive ? (
+              <button
+                type="button"
+                onClick={() => void onCancel()}
+                style={{
+                  ...secondaryBtn,
+                  borderColor: "var(--gb-danger)",
+                  color: "var(--gb-danger)",
+                  fontWeight: 600,
+                }}
+                title="Stop the current turn (Esc)"
+              >
+                Stop
               </button>
-            )}
+            ) : null}
             <button
               type="button"
               disabled={!ready || (!draft.trim() && attachments.length === 0)}

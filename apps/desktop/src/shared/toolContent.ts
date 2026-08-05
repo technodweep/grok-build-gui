@@ -1,3 +1,4 @@
+import { asDisplayText } from "./text";
 import type { ToolContentBlock } from "./types";
 
 /** Build a unified-diff string from ACP `type: "diff"` content blocks. */
@@ -7,8 +8,8 @@ export function blocksToDiffText(blocks: ToolContentBlock[]): string | null {
   const parts: string[] = [];
   for (const d of diffs) {
     const path = d.path || "file";
-    const oldText = d.oldText ?? "";
-    const newText = d.newText ?? "";
+    const oldText = asDisplayText(d.oldText);
+    const newText = asDisplayText(d.newText);
     parts.push(`--- a/${path}`);
     parts.push(`+++ b/${path}`);
     // Prefer full-file replace style when either side is empty.
@@ -50,6 +51,13 @@ export function extractContentBlocks(content: unknown): ToolContentBlock[] | und
   return blocks.length ? blocks : undefined;
 }
 
+/** Flatten a single content block to display text (never returns an object). */
+export function blockDisplayText(b: ToolContentBlock): string {
+  if (typeof b.text === "string") return b.text;
+  if (b.content != null) return asDisplayText(b.content);
+  return "";
+}
+
 /** Text blocks or raw output for tool cards. */
 export function toolOutputFromUpdate(update: {
   content?: unknown;
@@ -61,7 +69,7 @@ export function toolOutputFromUpdate(update: {
     if (diff) return { output: diff, contentBlocks };
     // Flatten text-ish blocks
     const texts = contentBlocks
-      .map((b) => b.text || b.content || "")
+      .map(blockDisplayText)
       .filter(Boolean)
       .join("\n");
     if (texts) return { output: texts, contentBlocks };
@@ -70,8 +78,8 @@ export function toolOutputFromUpdate(update: {
   if (typeof update.content === "string") {
     return { output: update.content };
   }
-  if (update.content && typeof update.content === "object" && "text" in update.content) {
-    const t = (update.content as { text?: string }).text;
+  if (update.content && typeof update.content === "object") {
+    const t = asDisplayText(update.content);
     if (t) return { output: t };
   }
   return {};

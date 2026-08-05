@@ -110,6 +110,11 @@ export interface GuiSettings {
   binaryOverride?: string | null;
   theme?: string;
   fontSize?: number;
+  /**
+   * When true: Enter inserts newline, Ctrl/Cmd+Enter sends.
+   * When false (default): Enter sends, Shift+Enter newline.
+   */
+  multilineMode?: boolean;
 }
 
 export interface McpServerInfo {

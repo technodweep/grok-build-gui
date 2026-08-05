@@ -166,6 +166,24 @@ mod tests {
     use super::*;
 
     #[test]
+    fn initialize_advertises_fs_and_terminal() {
+        let p = initialize_params();
+        assert_eq!(p["protocolVersion"], 1);
+        assert_eq!(p["clientCapabilities"]["terminal"], true);
+        assert_eq!(p["clientCapabilities"]["fs"]["readTextFile"], true);
+        assert_eq!(p["clientCapabilities"]["fs"]["writeTextFile"], true);
+    }
+
+    #[test]
+    fn request_is_newline_framed() {
+        let line = request(1, "session/new", json!({ "cwd": "/tmp" }));
+        assert!(line.ends_with('\n'));
+        let v: Value = serde_json::from_str(line.trim()).unwrap();
+        assert_eq!(v["method"], "session/new");
+        assert_eq!(v["id"], 1);
+    }
+
+    #[test]
     fn parse_notification_without_id() {
         let line = r#"{"jsonrpc":"2.0","method":"session/update","params":{"sessionId":"x","update":{"sessionUpdate":"agent_message_chunk"}}}"#;
         match Incoming::parse(line).unwrap() {

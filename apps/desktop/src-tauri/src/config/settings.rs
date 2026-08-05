@@ -24,6 +24,9 @@ pub struct GuiSettings {
     /// Base UI font size in px (12–20).
     #[serde(default = "default_font_size")]
     pub font_size: u32,
+    /// Enter = newline when true; Enter = send when false (default).
+    #[serde(default)]
+    pub multiline_mode: bool,
 }
 
 fn default_theme() -> String {

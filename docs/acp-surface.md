@@ -1,6 +1,8 @@
 # ACP surface checklist
 
-Track TUI parity via ACP. Update as features land.
+Track **shipped** surface area. For the full “everything Grok Build can do” roadmap (gaps + phases), see **[full-parity-plan.md](./full-parity-plan.md)**.
+
+Update this checklist as features land.
 
 ## Core (PR2)
 
@@ -70,6 +72,14 @@ Track TUI parity via ACP. Update as features land.
 - [x] Richer tool cards (ACP `content` diff blocks)
 - [x] Auth verify (`authenticate` cached_token) + email display on welcome
 - [x] Settings → Grok config overview (MCP servers, skills, marketplace, open config.toml)
+- [x] Scrollback find (`Ctrl+F` / `/find`)
+- [x] Multiline composer mode (`/multiline`, settings)
+- [x] Sticky plan progress strip
+- [x] Unit tests: fs_policy, grok_config parse, ACP protocol helpers
+- [x] Phase A: `/compact`, `/rewind`/`/undo`, `/fork` (agent slash + local rewind)
+- [x] Phase A: history search panel (`/history`)
+- [x] Phase A: `/copy [n] [path]`
+- [x] Phase A: auto-compact system banners
 
 ## Packaging (PR8)
 

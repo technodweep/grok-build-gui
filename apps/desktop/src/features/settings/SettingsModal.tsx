@@ -15,9 +15,11 @@ export function SettingsModal() {
   const open = useAppStore((s) => s.settingsOpen);
   const setOpen = useAppStore((s) => s.setSettingsOpen);
   const setAlwaysApprove = useAppStore((s) => s.setAlwaysApprove);
+  const setMultilineMode = useAppStore((s) => s.setMultilineMode);
   const setEnv = useAppStore((s) => s.setEnv);
   const setError = useAppStore((s) => s.setError);
   const alwaysApprove = useAppStore((s) => s.alwaysApprove);
+  const multilineModeStore = useAppStore((s) => s.multilineMode);
   const projectCwd = useAppStore((s) => s.projectCwd);
   const session = useAppStore((s) => s.session);
 
@@ -27,6 +29,7 @@ export function SettingsModal() {
   const [binaryOverride, setBinaryOverride] = useState("");
   const [lastCwd, setLastCwd] = useState("");
   const [yolo, setYolo] = useState(alwaysApprove);
+  const [multiline, setMultiline] = useState(multilineModeStore);
   const [saving, setSaving] = useState(false);
   const [grok, setGrok] = useState<GrokConfigOverview | null>(null);
   const [grokLoading, setGrokLoading] = useState(false);
@@ -41,6 +44,7 @@ export function SettingsModal() {
       setBinaryOverride(s.binaryOverride ?? "");
       setLastCwd(s.lastProjectCwd ?? "");
       setYolo(!!s.alwaysApprove);
+      setMultiline(!!s.multilineMode);
     });
   }, [open]);
 
@@ -66,9 +70,11 @@ export function SettingsModal() {
         binaryOverride: binaryOverride.trim() || null,
         theme,
         fontSize,
+        multilineMode: multiline,
       };
       await setGuiSettings(settings);
       setAlwaysApprove(yolo);
+      setMultilineMode(multiline);
       applyTheme(theme, fontSize);
       const env = await getEnvironment(binaryOverride.trim() || null);
       setEnv(env);
@@ -186,6 +192,21 @@ export function SettingsModal() {
                 </label>
                 <p style={hint}>
                   Interactive sessions still respect this only when you open/resume with it enabled.
+                </p>
+              </section>
+
+              <section style={section}>
+                <label style={label}>
+                  <input
+                    type="checkbox"
+                    checked={multiline}
+                    onChange={(e) => setMultiline(e.target.checked)}
+                  />{" "}
+                  Multiline composer (Enter = newline)
+                </label>
+                <p style={hint}>
+                  When on: Enter inserts a newline, Ctrl/Cmd+Enter sends. Toggle with{" "}
+                  <code>/multiline</code>.
                 </p>
               </section>
 

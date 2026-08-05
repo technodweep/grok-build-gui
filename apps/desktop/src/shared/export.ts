@@ -18,6 +18,22 @@ export function conversationText(items: ScrollItem[]): string {
     .join("\n\n");
 }
 
+/** Write arbitrary text to an absolute path (Tauri) or trigger download. */
+export async function writeTextFile(path: string, content: string): Promise<void> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core");
+    await invoke("write_export_file", { path, content });
+  } catch {
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = path.split("/").pop() || "copy.txt";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+}
+
 /** Save transcript via Tauri dialog, or fall back to download in browser. */
 export async function exportConversationToFile(
   items: ScrollItem[],

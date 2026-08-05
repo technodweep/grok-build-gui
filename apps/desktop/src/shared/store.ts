@@ -62,6 +62,12 @@ interface AppState {
   terminals: TerminalSnapshot[];
   terminalsOpen: boolean;
   selectedTerminalId: string | null;
+  /** Enter inserts newline; Ctrl+Enter sends. */
+  multilineMode: boolean;
+  findOpen: boolean;
+  findQuery: string;
+  findIndex: number;
+  historyOpen: boolean;
 
   setEnv: (env: EnvironmentInfo | null) => void;
   setStatus: (status: AgentStatus) => void;
@@ -123,6 +129,16 @@ interface AppState {
   clearTerminals: () => void;
   setTerminalsOpen: (v: boolean) => void;
   setSelectedTerminalId: (id: string | null) => void;
+  setMultilineMode: (v: boolean) => void;
+  setFindOpen: (v: boolean) => void;
+  setFindQuery: (q: string) => void;
+  setFindIndex: (i: number) => void;
+  setHistoryOpen: (v: boolean) => void;
+  /**
+   * Drop the last `turns` user turns (and everything after the cut point).
+   * Returns number of items removed.
+   */
+  rewindTurns: (turns?: number) => number;
 }
 
 let seq = 0;
@@ -152,9 +168,34 @@ const CLIENT_COMMANDS: SlashCommand[] = [
   },
   {
     name: "history",
-    description: "Recall last prompt into composer (also ↑ on empty input)",
+    description: "Search past prompts (also ↑ on empty input)",
     source: "client",
   },
+  {
+    name: "compact",
+    description: "Compress context (agent /compact)",
+    inputHint: "keep note?",
+    source: "client",
+  },
+  {
+    name: "rewind",
+    description: "Undo last turn(s). Alias: /undo",
+    inputHint: "count?",
+    source: "client",
+  },
+  { name: "undo", description: "Alias for /rewind", source: "client" },
+  {
+    name: "fork",
+    description: "Branch session via agent /fork",
+    source: "client",
+  },
+  { name: "find", description: "Search scrollback (Ctrl+F)", source: "client" },
+  {
+    name: "multiline",
+    description: "Toggle Enter=newline mode (alias: /ml)",
+    source: "client",
+  },
+  { name: "ml", description: "Alias for /multiline", source: "client" },
   { name: "settings", description: "Open settings", source: "client" },
   { name: "shortcuts", description: "Keyboard shortcuts cheatsheet", source: "client" },
   { name: "context", description: "Show context window usage", source: "client" },
@@ -172,7 +213,12 @@ const CLIENT_COMMANDS: SlashCommand[] = [
     inputHint: "level",
     source: "client",
   },
-  { name: "copy", description: "Copy last agent reply to clipboard", source: "client" },
+  {
+    name: "copy",
+    description: "Copy Nth agent reply (default 1 = latest) or write to path",
+    inputHint: "n | path",
+    source: "client",
+  },
   {
     name: "rename",
     description: "Rename the current session",
@@ -254,6 +300,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   terminals: [],
   terminalsOpen: false,
   selectedTerminalId: null,
+  multilineMode: false,
+  findOpen: false,
+  findQuery: "",
+  findIndex: 0,
+  historyOpen: false,
 
   setEnv: (env) => set({ env }),
   setStatus: (status) => set({ status }),
@@ -300,24 +351,33 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   appendAgentText: (text, sessionId) =>
     withSessionItems(get, set, sessionId, (items) => {
+      // Always coerce — ACP sometimes streams structured {type,text} objects.
+      const chunk = typeof text === "string" ? text : String(text ?? "");
+      if (!chunk) return items;
       const last = items[items.length - 1];
       if (last?.kind === "agent") {
         const updated = [...items];
-        updated[updated.length - 1] = { ...last, text: last.text + text };
+        const prev =
+          typeof last.text === "string" ? last.text : String(last.text ?? "");
+        updated[updated.length - 1] = { ...last, text: prev + chunk };
         return updated;
       }
-      return [...items, { id: nextId(), kind: "agent", text }];
+      return [...items, { id: nextId(), kind: "agent", text: chunk }];
     }),
 
   appendThoughtText: (text, sessionId) =>
     withSessionItems(get, set, sessionId, (items) => {
+      const chunk = typeof text === "string" ? text : String(text ?? "");
+      if (!chunk) return items;
       const last = items[items.length - 1];
       if (last?.kind === "thought") {
         const updated = [...items];
-        updated[updated.length - 1] = { ...last, text: last.text + text };
+        const prev =
+          typeof last.text === "string" ? last.text : String(last.text ?? "");
+        updated[updated.length - 1] = { ...last, text: prev + chunk };
         return updated;
       }
-      return [...items, { id: nextId(), kind: "thought", text }];
+      return [...items, { id: nextId(), kind: "thought", text: chunk }];
     }),
 
   upsertTool: (tool, sessionId) =>
@@ -511,6 +571,38 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ terminals: [], selectedTerminalId: null, terminalsOpen: false }),
   setTerminalsOpen: (terminalsOpen) => set({ terminalsOpen }),
   setSelectedTerminalId: (selectedTerminalId) => set({ selectedTerminalId }),
+  setMultilineMode: (multilineMode) => set({ multilineMode }),
+  setFindOpen: (findOpen) => set({ findOpen }),
+  setFindQuery: (findQuery) => set({ findQuery }),
+  setFindIndex: (findIndex) => set({ findIndex }),
+  setHistoryOpen: (historyOpen) => set({ historyOpen }),
+
+  rewindTurns: (turns = 1) => {
+    const n = Math.max(1, Math.floor(turns));
+    const sid = activeId(get);
+    const items = get().items;
+    let userHits = 0;
+    let cut = 0;
+    for (let i = items.length - 1; i >= 0; i--) {
+      if (items[i].kind === "user") {
+        userHits += 1;
+        if (userHits === n) {
+          cut = i;
+          break;
+        }
+      }
+    }
+    if (userHits === 0) return 0;
+    const next = items.slice(0, cut);
+    const removed = items.length - next.length;
+    if (sid) {
+      const map = { ...get().sessionScroll, [sid]: next };
+      set({ sessionScroll: map, items: next });
+    } else {
+      set({ items: next });
+    }
+    return removed;
+  },
 }));
 
 export { nextId, formatJson, CLIENT_COMMANDS };

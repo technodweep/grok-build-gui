@@ -8,10 +8,13 @@ import { PermissionModal } from "./features/permissions/PermissionModal";
 import { SubagentsPanel } from "./features/chat/SubagentsPanel";
 import { TerminalPanel } from "./features/chat/TerminalPanel";
 import { ReconnectBanner } from "./features/chat/ReconnectBanner";
+import { FindBar } from "./features/chat/FindBar";
+import { PlanStrip } from "./features/chat/PlanStrip";
 import { ContextPanel } from "./features/context/ContextPanel";
 import { SettingsModal } from "./features/settings/SettingsModal";
 import { ModelPickerModal } from "./features/settings/ModelPickerModal";
 import { ShortcutsModal } from "./features/settings/ShortcutsModal";
+import { HistoryPanel } from "./features/composer/HistoryPanel";
 import { Welcome } from "./features/sessions/Welcome";
 import {
   getEnvironment,
@@ -22,6 +25,7 @@ import {
 import { appProbablyBackground, notify } from "./shared/notify";
 import { scheduleStreamFlush } from "./shared/streamBatch";
 import { formatJson, useAppStore } from "./shared/store";
+import { asDisplayText } from "./shared/text";
 import { applyTheme } from "./shared/theme";
 import { toolOutputFromUpdate } from "./shared/toolContent";
 import type {
@@ -51,20 +55,8 @@ function looksLikeSubagentTool(update: NonNullable<SessionUpdateParams["update"]
 
 function contentText(content: SessionUpdateParams["update"]): string {
   if (!content) return "";
-  const c = content.content;
-  if (typeof c === "string") return c;
-  if (Array.isArray(c)) {
-    return c
-      .map((b) =>
-        typeof b === "object" && b
-          ? String((b as { text?: string }).text ?? (b as { content?: string }).content ?? "")
-          : "",
-      )
-      .filter(Boolean)
-      .join("");
-  }
-  if (c && typeof c === "object" && "text" in c) return (c as { text?: string }).text ?? "";
-  return "";
+  // ACP content may be a string, {type,text}, nested {type,content:{...}}, or an array.
+  return asDisplayText(content.content);
 }
 
 function locationsOf(update: NonNullable<SessionUpdateParams["update"]>): string[] {
@@ -121,6 +113,8 @@ export default function App() {
   const setLastUsage = useAppStore((s) => s.setLastUsage);
   const setSettingsOpen = useAppStore((s) => s.setSettingsOpen);
   const setShortcutsOpen = useAppStore((s) => s.setShortcutsOpen);
+  const setFindOpen = useAppStore((s) => s.setFindOpen);
+  const setMultilineMode = useAppStore((s) => s.setMultilineMode);
   const setAlwaysApprove = useAppStore((s) => s.setAlwaysApprove);
   const upsertSubagent = useAppStore((s) => s.upsertSubagent);
   const upsertTerminal = useAppStore((s) => s.upsertTerminal);
@@ -134,6 +128,9 @@ export default function App() {
         applyTheme(settings.theme ?? "dark", settings.fontSize ?? 14);
         if (typeof settings.alwaysApprove === "boolean") {
           setAlwaysApprove(settings.alwaysApprove);
+        }
+        if (typeof settings.multilineMode === "boolean") {
+          setMultilineMode(settings.multilineMode);
         }
         const info = await getEnvironment(settings.binaryOverride ?? null);
         setEnv(info);
@@ -152,7 +149,7 @@ export default function App() {
         });
       }
     })();
-  }, [setEnv, setError, setAlwaysApprove]);
+  }, [setEnv, setError, setAlwaysApprove, setMultilineMode]);
 
   // Global shortcuts (when not focused in a field that consumes them)
   useEffect(() => {
@@ -172,6 +169,34 @@ export default function App() {
         setShortcutsOpen(true);
         return;
       }
+      if ((e.ctrlKey || e.metaKey) && (e.key === "f" || e.key === "F")) {
+        // Find in chat when a session is open.
+        if (useAppStore.getState().view === "chat") {
+          e.preventDefault();
+          setFindOpen(true);
+          return;
+        }
+      }
+      // Esc cancels an in-flight turn when not typing in a field / modal.
+      if (e.key === "Escape" && !inField) {
+        const st = useAppStore.getState();
+        if (st.view === "chat" && (st.busy || st.findOpen)) {
+          if (st.findOpen) {
+            e.preventDefault();
+            st.setFindOpen(false);
+            return;
+          }
+          if (st.busy) {
+            e.preventDefault();
+            st.setBusy(false);
+            st.clearPromptQueue();
+            void import("./shared/api").then(({ cancelTurn }) =>
+              cancelTurn().catch(() => undefined),
+            );
+            return;
+          }
+        }
+      }
       if (!inField && e.key === "?" && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
         setShortcutsOpen(true);
@@ -179,7 +204,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [setSettingsOpen, setShortcutsOpen]);
+  }, [setSettingsOpen, setShortcutsOpen, setFindOpen]);
 
   useEffect(() => {
     // Tauri listen() is async. Under React StrictMode the effect mounts,
@@ -327,6 +352,33 @@ export default function App() {
                 apiDurationMs: usage.apiDurationMs,
               });
             }
+          } else if (
+            kind === "auto_compact_started" ||
+            kind === "auto_compact_completed" ||
+            kind === "compaction_checkpoint"
+          ) {
+            const label =
+              kind === "auto_compact_started"
+                ? "Auto-compact started…"
+                : kind === "auto_compact_completed"
+                  ? "Auto-compact completed."
+                  : "Compaction checkpoint.";
+            useAppStore.getState().pushItem(
+              {
+                id: `sys-compact-${Date.now()}`,
+                kind: "system",
+                text: label,
+              },
+              sid,
+            );
+            const active = useAppStore.getState().session?.sessionId;
+            if (active) {
+              void import("./shared/api").then(({ getSessionSignals }) =>
+                getSessionSignals(active)
+                  .then((s) => useAppStore.getState().setSignals(s))
+                  .catch(() => undefined),
+              );
+            }
           } else if (kind === "available_commands_update") {
             const cmds =
               (update.availableCommands as Array<{
@@ -448,6 +500,8 @@ export default function App() {
       ) : showChat ? (
         <>
           <ReconnectBanner />
+          <FindBar />
+          <PlanStrip />
           <Scrollback />
           <SubagentsPanel />
           <TerminalPanel />
@@ -461,6 +515,7 @@ export default function App() {
       <PermissionModal />
       <SettingsModal />
       <ModelPickerModal />
+      <HistoryPanel />
       <ShortcutsModal />
       <ContextPanel />
     </div>

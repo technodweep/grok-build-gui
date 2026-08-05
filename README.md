@@ -19,9 +19,15 @@ The CLI agent remains the brain (auth, tools, MCP, sessions). This app is the vi
 - Virtualized scrollback, stream batching, live turn usage
 - ACP session/list merged into session browser; auth verify on welcome
 - Settings: Grok config overview (MCP, skills, open `~/.grok/config.toml`)
+- Find in scrollback (Ctrl+F), multiline mode, sticky plan strip
 - Themes (dark / dim / light), settings, shortcuts cheatsheet
 
-See [docs/architecture.md](docs/architecture.md) and [docs/acp-surface.md](docs/acp-surface.md) for the full surface map.
+Docs:
+
+- **[Full feature parity plan](docs/full-parity-plan.md)** — everything Grok Build can do, gap analysis, phases A–I
+- [Architecture](docs/architecture.md)
+- [Shipped ACP surface checklist](docs/acp-surface.md)
+- [Packaging](docs/packaging.md)
 
 ## Requirements
 

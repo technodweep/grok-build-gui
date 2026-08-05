@@ -396,3 +396,95 @@ pub fn ensure_config_exists() -> AppResult<PathBuf> {
     }
     Ok(path)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_mcp_servers_from_toml() {
+        let raw = r#"
+[models]
+default = "grok-4.5"
+
+[ui]
+permission_mode = "ask"
+
+[session]
+auto_compact_threshold_percent = 85
+
+[mcp_servers.fs]
+command = "npx"
+enabled = true
+
+[mcp_servers.remote]
+url = "https://example.com/mcp"
+enabled = false
+
+[skills]
+disabled = ["wip"]
+paths = ["~/extra-skills"]
+
+[[marketplace.sources]]
+name = "Official"
+git = "https://example.com/m.git"
+"#;
+        let doc: TomlValue = raw.parse().unwrap();
+        let mut overview = GrokConfigOverview {
+            config_path: "test".into(),
+            config_exists: true,
+            default_model: None,
+            permission_mode: None,
+            auto_compact_percent: None,
+            mcp_servers: Vec::new(),
+            skills: Vec::new(),
+            skill_paths: Vec::new(),
+            skill_disabled: Vec::new(),
+            marketplace_sources: Vec::new(),
+            parse_error: None,
+        };
+        apply_toml(&mut overview, &doc);
+        assert_eq!(overview.default_model.as_deref(), Some("grok-4.5"));
+        assert_eq!(overview.permission_mode.as_deref(), Some("ask"));
+        assert_eq!(overview.auto_compact_percent, Some(85));
+        assert_eq!(overview.mcp_servers.len(), 2);
+        let fs = overview
+            .mcp_servers
+            .iter()
+            .find(|s| s.name == "fs")
+            .unwrap();
+        assert_eq!(fs.transport, "stdio");
+        assert!(fs.enabled);
+        let remote = overview
+            .mcp_servers
+            .iter()
+            .find(|s| s.name == "remote")
+            .unwrap();
+        assert_eq!(remote.transport, "http");
+        assert!(!remote.enabled);
+        assert_eq!(overview.skill_disabled, vec!["wip".to_string()]);
+        assert_eq!(overview.skill_paths, vec!["~/extra-skills".to_string()]);
+        assert_eq!(overview.marketplace_sources.len(), 1);
+    }
+
+    #[test]
+    fn skill_description_from_frontmatter() {
+        let dir = std::env::temp_dir().join(format!(
+            "grok-skill-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("SKILL.md");
+        fs::write(
+            &path,
+            "---\nname: demo\ndescription: Does useful things\n---\n\n# Demo\n",
+        )
+        .unwrap();
+        let d = read_skill_description(&path);
+        assert_eq!(d.as_deref(), Some("Does useful things"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+}

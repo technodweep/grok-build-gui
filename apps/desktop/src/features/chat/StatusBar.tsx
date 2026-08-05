@@ -1,5 +1,10 @@
 import { type CSSProperties } from "react";
-import { disconnectAgent, getSessionSignals, newSession } from "../../shared/api";
+import {
+  disconnectAgent,
+  getSessionSignals,
+  newSession,
+  sendPrompt,
+} from "../../shared/api";
 import { nextId, useAppStore } from "../../shared/store";
 
 export function StatusBar() {
@@ -30,6 +35,9 @@ export function StatusBar() {
   const terminals = useAppStore((s) => s.terminals);
   const terminalsOpen = useAppStore((s) => s.terminalsOpen);
   const setTerminalsOpen = useAppStore((s) => s.setTerminalsOpen);
+  const setHistoryOpen = useAppStore((s) => s.setHistoryOpen);
+  const rewindTurns = useAppStore((s) => s.rewindTurns);
+  const setBusy = useAppStore((s) => s.setBusy);
 
   const goHome = async () => {
     await disconnectAgent();
@@ -89,6 +97,49 @@ export function StatusBar() {
       void getSessionSignals(session.sessionId)
         .then(setSignals)
         .catch(() => undefined);
+    }
+  };
+
+  const onCompact = async () => {
+    if (!session || busy || status !== "ready") return;
+    pushItem({
+      id: nextId(),
+      kind: "system",
+      text: "Compacting context…",
+    });
+    try {
+      setBusy(true);
+      await sendPrompt("/compact");
+      void getSessionSignals(session.sessionId)
+        .then(setSignals)
+        .catch(() => undefined);
+      setContextOpen(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onRewind = async () => {
+    if (!session || busy || status !== "ready") return;
+    const removed = rewindTurns(1);
+    if (removed === 0) {
+      setError("Nothing to rewind");
+      return;
+    }
+    pushItem({
+      id: nextId(),
+      kind: "system",
+      text: `Local scroll rewound (${removed} items). Asking agent to /rewind…`,
+    });
+    try {
+      setBusy(true);
+      await sendPrompt("/rewind");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -290,6 +341,32 @@ export function StatusBar() {
         ) : null}
         {session ? (
           <>
+            <button
+              type="button"
+              style={btn}
+              disabled={busy || status !== "ready"}
+              onClick={() => void onCompact()}
+              title="Compress context (/compact)"
+            >
+              Compact
+            </button>
+            <button
+              type="button"
+              style={btn}
+              disabled={busy || status !== "ready"}
+              onClick={() => void onRewind()}
+              title="Undo last turn (/rewind)"
+            >
+              Rewind
+            </button>
+            <button
+              type="button"
+              style={btn}
+              onClick={() => setHistoryOpen(true)}
+              title="Prompt history (/history)"
+            >
+              History
+            </button>
             <button type="button" style={btn} onClick={() => void onNew()} title="New session">
               New
             </button>

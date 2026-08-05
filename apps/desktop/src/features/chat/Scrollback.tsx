@@ -3,6 +3,8 @@ import { useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useAppStore } from "../../shared/store";
+import { asDisplayText } from "../../shared/text";
+import { blockDisplayText } from "../../shared/toolContent";
 import type { ScrollItem, ToolContentBlock } from "../../shared/types";
 import { DiffView } from "./DiffView";
 
@@ -46,7 +48,7 @@ function ContentBlocks({ blocks }: { blocks: ToolContentBlock[] }) {
             </div>
           );
         }
-        const text = b.text || b.content;
+        const text = blockDisplayText(b);
         if (text) {
           return (
             <pre
@@ -100,7 +102,9 @@ function ItemView({ item }: { item: ScrollItem }) {
           >
             You
           </div>
-          <div style={{ whiteSpace: "pre-wrap", fontSize: 15 }}>{item.text}</div>
+          <div style={{ whiteSpace: "pre-wrap", fontSize: 15 }}>
+            {asDisplayText(item.text)}
+          </div>
         </div>
       );
     case "agent":
@@ -128,7 +132,9 @@ function ItemView({ item }: { item: ScrollItem }) {
             Grok
           </div>
           <div className="prose-chat" style={{ fontSize: 15 }}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.text}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {asDisplayText(item.text)}
+            </ReactMarkdown>
           </div>
         </div>
       );
@@ -166,7 +172,7 @@ function ItemView({ item }: { item: ScrollItem }) {
               opacity: 0.9,
             }}
           >
-            {item.text}
+            {asDisplayText(item.text)}
           </div>
         </details>
       );
@@ -342,7 +348,7 @@ function ItemView({ item }: { item: ScrollItem }) {
                 <span style={{ color: statusColor(e.status), minWidth: 14 }}>
                   {planStatusIcon(e.status)}
                 </span>
-                <span>{e.content}</span>
+                <span>{asDisplayText(e.content)}</span>
               </li>
             ))}
           </ul>
@@ -366,7 +372,7 @@ function ItemView({ item }: { item: ScrollItem }) {
             containIntrinsicSize: "auto 40px",
           }}
         >
-          {item.text}
+          {asDisplayText(item.text)}
         </div>
       );
   }
@@ -374,8 +380,35 @@ function ItemView({ item }: { item: ScrollItem }) {
 
 export function Scrollback() {
   const items = useAppStore((s) => s.items);
+  const findOpen = useAppStore((s) => s.findOpen);
+  const findQuery = useAppStore((s) => s.findQuery);
+  const findIndex = useAppStore((s) => s.findIndex);
   const parentRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
+
+  const matchIndices = (() => {
+    const q = findQuery.trim().toLowerCase();
+    if (!findOpen || !q) return new Set<number>();
+    const set = new Set<number>();
+    items.forEach((it, i) => {
+      let text = "";
+      if (it.kind === "user" || it.kind === "agent" || it.kind === "thought" || it.kind === "system") {
+        text = it.text;
+      } else if (it.kind === "tool") {
+        text = [it.title, it.input, it.output].filter(Boolean).join("\n");
+      } else if (it.kind === "plan") {
+        text = it.entries.map((e) => e.content).join("\n");
+      }
+      if (text.toLowerCase().includes(q)) set.add(i);
+    });
+    return set;
+  })();
+
+  const activeMatch = (() => {
+    if (!findOpen || matchIndices.size === 0) return -1;
+    const arr = Array.from(matchIndices).sort((a, b) => a - b);
+    return arr[Math.min(findIndex, arr.length - 1)] ?? -1;
+  })();
 
   const virtualizer = useVirtualizer({
     count: items.length,
@@ -465,6 +498,7 @@ export function Scrollback() {
             <div
               key={item.id}
               data-index={v.index}
+              data-scroll-item={v.index}
               ref={virtualizer.measureElement}
               style={{
                 position: "absolute",
@@ -473,6 +507,14 @@ export function Scrollback() {
                 width: "100%",
                 transform: `translateY(${v.start}px)`,
                 paddingBottom: 12,
+                outline:
+                  v.index === activeMatch
+                    ? "2px solid var(--gb-accent)"
+                    : matchIndices.has(v.index)
+                      ? "1px solid var(--gb-accent-dim)"
+                      : undefined,
+                outlineOffset: 2,
+                borderRadius: 12,
               }}
             >
               <ItemView item={item} />

@@ -172,6 +172,8 @@ struct LiveAgent {
     sessions: HashMap<String, LiveSession>,
     cwd: PathBuf,
     pending: Arc<Mutex<HashMap<u64, Pending>>>,
+    /// JSON-RPC request ids for in-flight `session/prompt` (so cancel can unblock waiters).
+    in_flight_prompts: Arc<Mutex<std::collections::HashSet<u64>>>,
     /// Models catalog for the connection (updated on session open + agent notifications).
     models: SessionModelsState,
 }
@@ -569,6 +571,7 @@ impl AcpHandle {
             sessions: HashMap::new(),
             cwd: cwd_for_handlers.clone(),
             pending: pending.clone(),
+            in_flight_prompts: Arc::new(Mutex::new(std::collections::HashSet::new())),
             models: SessionModelsState::default(),
         });
 
@@ -886,6 +889,12 @@ impl AcpHandle {
     }
 
     pub async fn cancel_session(&self, app: AppHandle, session_id: &str) -> AppResult<()> {
+        // Prefer full cancel path (unblocks prompt waiters) when this is the active session.
+        if self.session().as_ref().map(|s| s.session_id.as_str()) == Some(session_id) {
+            self.cancel().await?;
+            self.emit_roster(&app);
+            return Ok(());
+        }
         let line = protocol::notification("session/cancel", session_cancel_params(session_id));
         {
             let guard = self.inner.lock();
@@ -948,24 +957,43 @@ impl AcpHandle {
     async fn request(&self, method: &str, params: Value) -> AppResult<Value> {
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let (tx, rx) = oneshot::channel();
+        let is_prompt = method == "session/prompt";
 
         {
             let mut guard = self.inner.lock();
             let live = guard.as_mut().ok_or(AppError::NotConnected)?;
             live.pending.lock().insert(id, Pending { tx });
+            if is_prompt {
+                live.in_flight_prompts.lock().insert(id);
+            }
             let line = protocol::request(id, method, params);
             live.cmd_tx
                 .send(AgentCommand::Write(line))
                 .map_err(|_| AppError::NotConnected)?;
         }
 
-        match tokio::time::timeout(std::time::Duration::from_secs(120), rx).await {
+        // Prompts can run a long time; cancel unblocks via in_flight_prompts.
+        // Other RPCs keep a shorter bound.
+        let timeout = if is_prompt {
+            std::time::Duration::from_secs(3600)
+        } else {
+            std::time::Duration::from_secs(120)
+        };
+
+        let result = match tokio::time::timeout(timeout, rx).await {
             Ok(Ok(result)) => result,
             Ok(Err(_)) => Err(AppError::Agent("request channel closed".into())),
             Err(_) => Err(AppError::Agent(format!(
                 "timeout waiting for response to {method}"
             ))),
+        };
+
+        if is_prompt {
+            if let Some(live) = self.inner.lock().as_ref() {
+                live.in_flight_prompts.lock().remove(&id);
+            }
         }
+        result
     }
 
     pub async fn send_prompt(&self, text: &str) -> AppResult<()> {
@@ -984,17 +1012,7 @@ impl AcpHandle {
                 session_prompt_params(&session.session_id, text),
             )
             .await;
-        if let Some(live) = self.inner.lock().as_mut() {
-            if let Some(s) = live.sessions.get_mut(&session.session_id) {
-                s.state = if result.is_ok() {
-                    LiveSessionState::Idle
-                } else {
-                    LiveSessionState::Failed
-                };
-                s.activity = if result.is_ok() { "idle" } else { "error" }.into();
-                s.updated_at = chrono_like_now();
-            }
-        }
+        self.finish_prompt_state(&session.session_id, &result);
         result.map(|_| ())
     }
 
@@ -1017,33 +1035,95 @@ impl AcpHandle {
                 session_prompt_blocks(&session.session_id, blocks),
             )
             .await;
+        self.finish_prompt_state(&session.session_id, &result);
+        result.map(|_| ())
+    }
+
+    fn finish_prompt_state(&self, session_id: &str, result: &AppResult<Value>) {
         if let Some(live) = self.inner.lock().as_mut() {
-            if let Some(s) = live.sessions.get_mut(&session.session_id) {
-                s.state = if result.is_ok() {
-                    LiveSessionState::Idle
+            if let Some(s) = live.sessions.get_mut(session_id) {
+                let cancelled = result
+                    .as_ref()
+                    .ok()
+                    .and_then(|v| {
+                        v.get("stopReason")
+                            .or_else(|| v.get("stop_reason"))
+                            .and_then(|x| x.as_str())
+                    })
+                    .is_some_and(|r| r == "cancelled" || r == "canceled");
+                if cancelled {
+                    s.state = LiveSessionState::Idle;
+                    s.activity = "cancelled".into();
+                } else if result.is_ok() {
+                    s.state = LiveSessionState::Idle;
+                    s.activity = "idle".into();
+                } else if result
+                    .as_ref()
+                    .err()
+                    .is_some_and(|e| e.to_string().contains("cancelled"))
+                {
+                    s.state = LiveSessionState::Idle;
+                    s.activity = "cancelled".into();
                 } else {
-                    LiveSessionState::Failed
-                };
-                s.activity = if result.is_ok() { "idle" } else { "error" }.into();
+                    s.state = LiveSessionState::Failed;
+                    s.activity = "error".into();
+                }
                 s.updated_at = chrono_like_now();
             }
         }
-        result.map(|_| ())
     }
 
     pub async fn cancel(&self) -> AppResult<()> {
         let session_id = self.session().ok_or(AppError::NoSession)?.session_id;
-        let line = protocol::notification("session/cancel", session_cancel_params(&session_id));
-        let guard = self.inner.lock();
-        let live = guard.as_ref().ok_or(AppError::NotConnected)?;
-        live.cmd_tx
-            .send(AgentCommand::Write(line))
-            .map_err(|_| AppError::NotConnected)?;
-        if let Some(s) = live.sessions.get(&session_id) {
-            // can't mutate through shared ref easily here — drop and retouch
-            let _ = s;
+
+        // 1) Tell the agent to stop the turn.
+        let cancel_line =
+            protocol::notification("session/cancel", session_cancel_params(&session_id));
+
+        let prompt_ids: Vec<u64> = {
+            let guard = self.inner.lock();
+            let live = guard.as_ref().ok_or(AppError::NotConnected)?;
+            live.cmd_tx
+                .send(AgentCommand::Write(cancel_line))
+                .map_err(|_| AppError::NotConnected)?;
+
+            // Also send protocol-level cancel for each in-flight prompt request id.
+            let ids: Vec<u64> = live.in_flight_prompts.lock().iter().copied().collect();
+            for id in &ids {
+                let line = protocol::notification(
+                    "$/cancel_request",
+                    json!({ "requestId": id }),
+                );
+                let _ = live.cmd_tx.send(AgentCommand::Write(line));
+            }
+            ids
+        };
+
+        // 2) Unblock local waiters immediately so the UI is not stuck on send_prompt.
+        {
+            let guard = self.inner.lock();
+            if let Some(live) = guard.as_ref() {
+                let mut pending = live.pending.lock();
+                let mut inflight = live.in_flight_prompts.lock();
+                for id in prompt_ids {
+                    inflight.remove(&id);
+                    if let Some(p) = pending.remove(&id) {
+                        let _ = p.tx.send(Ok(json!({
+                            "stopReason": "cancelled"
+                        })));
+                    }
+                }
+            }
         }
-        drop(guard);
+
+        // 3) Deny any open permission prompts so the agent is not stuck there either.
+        {
+            let pending = std::mem::take(&mut *self.pending_permissions.lock());
+            for (_, p) in pending {
+                let _ = p.tx.send("reject".into());
+            }
+        }
+
         if let Some(live) = self.inner.lock().as_mut() {
             if let Some(s) = live.sessions.get_mut(&session_id) {
                 s.state = LiveSessionState::Idle;
