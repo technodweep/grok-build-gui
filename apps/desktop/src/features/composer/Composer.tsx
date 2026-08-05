@@ -78,6 +78,13 @@ export function Composer() {
   const setPlanModeState = useAppStore((s) => s.setPlanModeState);
   const setAlwaysApprove = useAppStore((s) => s.setAlwaysApprove);
   const sessionMode = useAppStore((s) => s.sessionMode);
+  const compactMode = useAppStore((s) => s.compactMode);
+  const setCompactMode = useAppStore((s) => s.setCompactMode);
+  const showTimestamps = useAppStore((s) => s.showTimestamps);
+  const setShowTimestamps = useAppStore((s) => s.setShowTimestamps);
+  const setFoldPolicy = useAppStore((s) => s.setFoldPolicy);
+  const setTimelineOpen = useAppStore((s) => s.setTimelineOpen);
+  const timelineOpen = useAppStore((s) => s.timelineOpen);
 
   const [sending, setSending] = useState(false);
   const [palette, setPalette] = useState<PaletteMode>(null);
@@ -713,6 +720,79 @@ export function Composer() {
           text: next
             ? "Multiline on · Enter = newline, Ctrl+Enter = send"
             : "Multiline off · Enter = send, Shift+Enter = newline",
+        });
+        break;
+      }
+      case "timestamps": {
+        const next = !showTimestamps;
+        setShowTimestamps(next);
+        try {
+          const { getGuiSettings, setGuiSettings } = await import("../../shared/api");
+          const s = await getGuiSettings();
+          await setGuiSettings({ ...s, showTimestamps: next });
+        } catch {
+          /* ignore */
+        }
+        pushItem({
+          id: nextId(),
+          kind: "system",
+          text: next ? "Timestamps on" : "Timestamps off",
+        });
+        break;
+      }
+      case "compact-mode": {
+        const next = !compactMode;
+        setCompactMode(next);
+        try {
+          const { getGuiSettings, setGuiSettings } = await import("../../shared/api");
+          const s = await getGuiSettings();
+          await setGuiSettings({ ...s, compactMode: next });
+        } catch {
+          /* ignore */
+        }
+        pushItem({
+          id: nextId(),
+          kind: "system",
+          text: next ? "Compact density on" : "Compact density off",
+        });
+        break;
+      }
+      case "timeline": {
+        setTimelineOpen(!timelineOpen);
+        break;
+      }
+      case "usage": {
+        setContextOpen(true);
+        if (ready) {
+          pushItem({
+            id: nextId(),
+            kind: "system",
+            text: "Opening usage panel · also running agent /usage…",
+          });
+          try {
+            await dispatchSend("/usage", []);
+          } catch (e) {
+            setError(e instanceof Error ? e.message : String(e));
+          }
+        }
+        break;
+      }
+      case "fold":
+      case "collapse": {
+        setFoldPolicy("all-closed");
+        pushItem({
+          id: nextId(),
+          kind: "system",
+          text: "Collapsed tools & thinking.",
+        });
+        break;
+      }
+      case "expand": {
+        setFoldPolicy("all-open");
+        pushItem({
+          id: nextId(),
+          kind: "system",
+          text: "Expanded tools & thinking.",
         });
         break;
       }

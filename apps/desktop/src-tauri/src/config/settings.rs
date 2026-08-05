@@ -27,6 +27,12 @@ pub struct GuiSettings {
     /// Enter = newline when true; Enter = send when false (default).
     #[serde(default)]
     pub multiline_mode: bool,
+    /// Tighter spacing in chat scrollback.
+    #[serde(default)]
+    pub compact_mode: bool,
+    /// Show per-message timestamps in scrollback.
+    #[serde(default)]
+    pub show_timestamps: bool,
 }
 
 fn default_theme() -> String {

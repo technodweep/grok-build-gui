@@ -12,6 +12,8 @@ import { TerminalPanel } from "./features/chat/TerminalPanel";
 import { ReconnectBanner } from "./features/chat/ReconnectBanner";
 import { FindBar } from "./features/chat/FindBar";
 import { PlanStrip } from "./features/chat/PlanStrip";
+import { ChatToolbar } from "./features/chat/ChatToolbar";
+import { TimelinePanel } from "./features/chat/TimelinePanel";
 import { ContextPanel } from "./features/context/ContextPanel";
 import { SettingsModal } from "./features/settings/SettingsModal";
 import { ModelPickerModal } from "./features/settings/ModelPickerModal";
@@ -150,7 +152,11 @@ export default function App() {
   const setShortcutsOpen = useAppStore((s) => s.setShortcutsOpen);
   const setFindOpen = useAppStore((s) => s.setFindOpen);
   const setMultilineMode = useAppStore((s) => s.setMultilineMode);
+  const setCompactMode = useAppStore((s) => s.setCompactMode);
+  const setShowTimestamps = useAppStore((s) => s.setShowTimestamps);
   const setAlwaysApprove = useAppStore((s) => s.setAlwaysApprove);
+  const jumpUserTurn = useAppStore((s) => s.jumpUserTurn);
+  const setTimelineOpen = useAppStore((s) => s.setTimelineOpen);
   const upsertSubagent = useAppStore((s) => s.upsertSubagent);
   const upsertTerminal = useAppStore((s) => s.upsertTerminal);
   const removeTerminal = useAppStore((s) => s.removeTerminal);
@@ -160,12 +166,22 @@ export default function App() {
     void (async () => {
       try {
         const settings = await getGuiSettings();
-        applyTheme(settings.theme ?? "dark", settings.fontSize ?? 14);
+        applyTheme(
+          settings.theme ?? "dark",
+          settings.fontSize ?? 14,
+          !!settings.compactMode,
+        );
         if (typeof settings.alwaysApprove === "boolean") {
           setAlwaysApprove(settings.alwaysApprove);
         }
         if (typeof settings.multilineMode === "boolean") {
           setMultilineMode(settings.multilineMode);
+        }
+        if (typeof settings.compactMode === "boolean") {
+          setCompactMode(settings.compactMode);
+        }
+        if (typeof settings.showTimestamps === "boolean") {
+          setShowTimestamps(settings.showTimestamps);
         }
         const info = await getEnvironment(settings.binaryOverride ?? null);
         setEnv(info);
@@ -184,7 +200,14 @@ export default function App() {
         });
       }
     })();
-  }, [setEnv, setError, setAlwaysApprove, setMultilineMode]);
+  }, [
+    setEnv,
+    setError,
+    setAlwaysApprove,
+    setMultilineMode,
+    setCompactMode,
+    setShowTimestamps,
+  ]);
 
   // Global shortcuts (when not focused in a field that consumes them)
   useEffect(() => {
@@ -211,6 +234,29 @@ export default function App() {
           setFindOpen(true);
           return;
         }
+      }
+      // Turn jump: Alt+↑ / Alt+↓ (or Ctrl+Alt when needed)
+      if (
+        e.altKey &&
+        !e.metaKey &&
+        (e.key === "ArrowUp" || e.key === "ArrowDown") &&
+        useAppStore.getState().view === "chat"
+      ) {
+        e.preventDefault();
+        jumpUserTurn(e.key === "ArrowUp" ? -1 : 1);
+        return;
+      }
+      // Timeline: Ctrl+G when in chat (tasks pane remapped for GUI)
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        (e.key === "g" || e.key === "G") &&
+        useAppStore.getState().view === "chat" &&
+        !inField
+      ) {
+        e.preventDefault();
+        const st = useAppStore.getState();
+        st.setTimelineOpen(!st.timelineOpen);
+        return;
       }
       // Esc cancels an in-flight turn when not typing in a field / modal.
       if (e.key === "Escape" && !inField) {
@@ -239,7 +285,7 @@ export default function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [setSettingsOpen, setShortcutsOpen, setFindOpen]);
+  }, [setSettingsOpen, setShortcutsOpen, setFindOpen, jumpUserTurn, setTimelineOpen]);
 
   useEffect(() => {
     // Tauri listen() is async. Under React StrictMode the effect mounts,
@@ -571,10 +617,16 @@ export default function App() {
           <ReconnectBanner />
           <FindBar />
           <PlanStrip />
-          <Scrollback />
-          <SubagentsPanel />
-          <TerminalPanel />
-          <Composer />
+          <ChatToolbar />
+          <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
+            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+              <Scrollback />
+              <SubagentsPanel />
+              <TerminalPanel />
+              <Composer />
+            </div>
+            <TimelinePanel />
+          </div>
         </>
       ) : showWelcome ? (
         <Welcome env={env} />

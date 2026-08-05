@@ -16,10 +16,14 @@ export function SettingsModal() {
   const setOpen = useAppStore((s) => s.setSettingsOpen);
   const setAlwaysApprove = useAppStore((s) => s.setAlwaysApprove);
   const setMultilineMode = useAppStore((s) => s.setMultilineMode);
+  const setCompactMode = useAppStore((s) => s.setCompactMode);
+  const setShowTimestamps = useAppStore((s) => s.setShowTimestamps);
   const setEnv = useAppStore((s) => s.setEnv);
   const setError = useAppStore((s) => s.setError);
   const alwaysApprove = useAppStore((s) => s.alwaysApprove);
   const multilineModeStore = useAppStore((s) => s.multilineMode);
+  const compactModeStore = useAppStore((s) => s.compactMode);
+  const showTimestampsStore = useAppStore((s) => s.showTimestamps);
   const projectCwd = useAppStore((s) => s.projectCwd);
   const session = useAppStore((s) => s.session);
 
@@ -30,6 +34,8 @@ export function SettingsModal() {
   const [lastCwd, setLastCwd] = useState("");
   const [yolo, setYolo] = useState(alwaysApprove);
   const [multiline, setMultiline] = useState(multilineModeStore);
+  const [compact, setCompact] = useState(compactModeStore);
+  const [timestamps, setTimestamps] = useState(showTimestampsStore);
   const [saving, setSaving] = useState(false);
   const [grok, setGrok] = useState<GrokConfigOverview | null>(null);
   const [grokLoading, setGrokLoading] = useState(false);
@@ -45,6 +51,8 @@ export function SettingsModal() {
       setLastCwd(s.lastProjectCwd ?? "");
       setYolo(!!s.alwaysApprove);
       setMultiline(!!s.multilineMode);
+      setCompact(!!s.compactMode);
+      setTimestamps(!!s.showTimestamps);
     });
   }, [open]);
 
@@ -71,11 +79,15 @@ export function SettingsModal() {
         theme,
         fontSize,
         multilineMode: multiline,
+        compactMode: compact,
+        showTimestamps: timestamps,
       };
       await setGuiSettings(settings);
       setAlwaysApprove(yolo);
       setMultilineMode(multiline);
-      applyTheme(theme, fontSize);
+      setCompactMode(compact);
+      setShowTimestamps(timestamps);
+      applyTheme(theme, fontSize, compact);
       const env = await getEnvironment(binaryOverride.trim() || null);
       setEnv(env);
       setOpen(false);
@@ -207,6 +219,37 @@ export function SettingsModal() {
                 <p style={hint}>
                   When on: Enter inserts a newline, Ctrl/Cmd+Enter sends. Toggle with{" "}
                   <code>/multiline</code>.
+                </p>
+              </section>
+
+              <section style={section}>
+                <label style={label}>
+                  <input
+                    type="checkbox"
+                    checked={compact}
+                    onChange={(e) => {
+                      setCompact(e.target.checked);
+                      applyTheme(theme, fontSize, e.target.checked);
+                    }}
+                  />{" "}
+                  Compact chat density
+                </label>
+                <p style={hint}>
+                  Tighter padding in the scrollback. Toggle with <code>/compact-mode</code>.
+                </p>
+              </section>
+
+              <section style={section}>
+                <label style={label}>
+                  <input
+                    type="checkbox"
+                    checked={timestamps}
+                    onChange={(e) => setTimestamps(e.target.checked)}
+                  />{" "}
+                  Show message timestamps
+                </label>
+                <p style={hint}>
+                  Display local time on each scroll item. Toggle with <code>/timestamps</code>.
                 </p>
               </section>
 

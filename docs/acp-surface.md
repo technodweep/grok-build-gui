@@ -85,6 +85,11 @@ Update this checklist as features land.
 - [x] Phase B: ACP `elicitation/create` form + URL modals (+ initialize capabilities)
 - [x] Phase B: status bar mode cycle Ask · Auto · Plan · Yolo
 - [x] Phase B: `/auto`, `/always-approve` client commands
+- [x] Phase C: context categories + usage tab (`/context`, `/usage`)
+- [x] Phase C: syntax highlight in agent markdown fences
+- [x] Phase C: fold/expand tools & thinking
+- [x] Phase C: compact density + timestamps settings
+- [x] Phase C: turn jump (Alt+↑/↓) + timeline outline
 
 ## Packaging (PR8)
 

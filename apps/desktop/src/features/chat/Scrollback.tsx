@@ -1,7 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useRef } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { MarkdownBody } from "../../shared/MarkdownBody";
 import { useAppStore } from "../../shared/store";
 import { asDisplayText } from "../../shared/text";
 import { blockDisplayText } from "../../shared/toolContent";
@@ -23,14 +22,25 @@ function planStatusIcon(status: string): string {
   return "○";
 }
 
+function formatTs(ts?: number): string | null {
+  if (ts == null || !Number.isFinite(ts)) return null;
+  try {
+    return new Date(ts).toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  } catch {
+    return null;
+  }
+}
+
 function ContentBlocks({ blocks }: { blocks: ToolContentBlock[] }) {
   return (
     <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
       {blocks.map((b, i) => {
         const t = (b.type ?? "").toLowerCase();
         if (t === "diff") {
-          // Prefer pre-flattened unified text when parent already set output;
-          // still show path header.
           return (
             <div key={i}>
               {b.path ? (
@@ -76,78 +86,119 @@ function ContentBlocks({ blocks }: { blocks: ToolContentBlock[] }) {
   );
 }
 
+function LabelRow({
+  label,
+  color,
+  ts,
+  showTs,
+}: {
+  label: string;
+  color: string;
+  ts?: number;
+  showTs: boolean;
+}) {
+  const clock = showTs ? formatTs(ts) : null;
+  return (
+    <div
+      style={{
+        marginBottom: 4,
+        fontSize: 11,
+        fontWeight: 600,
+        letterSpacing: "0.04em",
+        textTransform: "uppercase",
+        color,
+        display: "flex",
+        justifyContent: "space-between",
+        gap: 8,
+        alignItems: "baseline",
+      }}
+    >
+      <span>{label}</span>
+      {clock ? (
+        <span
+          style={{
+            fontWeight: 400,
+            letterSpacing: 0,
+            textTransform: "none",
+            color: "var(--gb-ink-muted)",
+            fontFamily: "ui-monospace, Menlo, monospace",
+            fontSize: 10,
+          }}
+        >
+          {clock}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function detailsOpen(
+  policy: "default" | "all-open" | "all-closed",
+  defaultOpen: boolean,
+): boolean | undefined {
+  if (policy === "all-open") return true;
+  if (policy === "all-closed") return false;
+  return defaultOpen;
+}
+
 function ItemView({ item }: { item: ScrollItem }) {
+  const showTimestamps = useAppStore((s) => s.showTimestamps);
+  const foldPolicy = useAppStore((s) => s.foldPolicy);
+  const compact = useAppStore((s) => s.compactMode);
+  const pad = compact ? "8px 12px" : "12px 16px";
+  const fontSize = compact ? 13 : 15;
+
   switch (item.kind) {
     case "user":
       return (
         <div
+          className="gb-scroll-item"
           style={{
             borderRadius: 12,
-            border: "1px solid #2a3140",
-            background: "#1e2a44",
-            padding: "12px 16px",
+            border: "1px solid var(--gb-border)",
+            background: "var(--gb-user)",
+            padding: pad,
             contentVisibility: "auto",
             containIntrinsicSize: "auto 72px",
           }}
         >
-          <div
-            style={{
-              marginBottom: 4,
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: "0.04em",
-              textTransform: "uppercase",
-              color: "#8b95a8",
-            }}
-          >
-            You
-          </div>
-          <div style={{ whiteSpace: "pre-wrap", fontSize: 15 }}>
-            {asDisplayText(item.text)}
-          </div>
+          <LabelRow label="You" color="var(--gb-ink-muted)" ts={item.ts} showTs={showTimestamps} />
+          <div style={{ whiteSpace: "pre-wrap", fontSize }}>{asDisplayText(item.text)}</div>
         </div>
       );
     case "agent":
       return (
         <div
+          className="gb-scroll-item"
           style={{
             borderRadius: 12,
-            border: "1px solid #2a3140",
-            background: "#12161e",
-            padding: "12px 16px",
+            border: "1px solid var(--gb-border)",
+            background: "var(--gb-agent)",
+            padding: pad,
             contentVisibility: "auto",
             containIntrinsicSize: "auto 96px",
           }}
         >
-          <div
-            style={{
-              marginBottom: 4,
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: "0.04em",
-              textTransform: "uppercase",
-              color: "#7c9cff",
-            }}
-          >
-            Grok
-          </div>
-          <div className="prose-chat" style={{ fontSize: 15 }}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-              {asDisplayText(item.text)}
-            </ReactMarkdown>
+          <LabelRow label="Grok" color="var(--gb-accent)" ts={item.ts} showTs={showTimestamps} />
+          <div className="prose-chat" style={{ fontSize }}>
+            <MarkdownBody text={asDisplayText(item.text)} />
           </div>
         </div>
       );
-    case "thought":
+    case "thought": {
+      const open = detailsOpen(foldPolicy, false);
       return (
         <details
+          className="gb-scroll-item"
+          open={open}
+          key={`thought-${item.id}-${foldPolicy}`}
           style={{
             borderRadius: 12,
-            border: "1px solid #2a3140",
-            background: "#1c1a28",
-            padding: "8px 16px",
-            fontSize: 13,
-            color: "#8b95a8",
+            border: "1px solid var(--gb-border)",
+            background: "var(--gb-thought)",
+            padding: compact ? "6px 12px" : "8px 16px",
+            fontSize: compact ? 12 : 13,
+            color: "var(--gb-ink-muted)",
             contentVisibility: "auto",
             containIntrinsicSize: "auto 48px",
           }}
@@ -159,9 +210,16 @@ function ItemView({ item }: { item: ScrollItem }) {
               fontWeight: 600,
               letterSpacing: "0.04em",
               textTransform: "uppercase",
+              display: "flex",
+              justifyContent: "space-between",
             }}
           >
-            Thinking
+            <span>Thinking</span>
+            {showTimestamps && formatTs(item.ts) ? (
+              <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>
+                {formatTs(item.ts)}
+              </span>
+            ) : null}
           </summary>
           <div
             style={{
@@ -176,6 +234,7 @@ function ItemView({ item }: { item: ScrollItem }) {
           </div>
         </details>
       );
+    }
     case "tool": {
       const hasBlocks = (item.contentBlocks?.length ?? 0) > 0;
       const looksLikeDiff =
@@ -186,16 +245,20 @@ function ItemView({ item }: { item: ScrollItem }) {
           item.title.toLowerCase().includes("edit") ||
           item.title.toLowerCase().includes("diff") ||
           item.contentBlocks?.some((b) => (b.type ?? "").toLowerCase() === "diff"));
+      const defaultOpen = item.status !== "completed";
+      const open = detailsOpen(foldPolicy, defaultOpen);
       return (
         <details
-          open={item.status !== "completed"}
+          className="gb-scroll-item"
+          open={open}
+          key={`tool-${item.id}-${foldPolicy}`}
           style={{
             borderRadius: 12,
-            border: "1px solid #2a3140",
-            background: "#1a2420",
-            padding: "10px 16px",
+            border: "1px solid var(--gb-border)",
+            background: "var(--gb-tool)",
+            padding: compact ? "8px 12px" : "10px 16px",
             fontFamily: "ui-monospace, Menlo, monospace",
-            fontSize: 13,
+            fontSize: compact ? 12 : 13,
             contentVisibility: "auto",
             containIntrinsicSize: "auto 64px",
           }}
@@ -219,15 +282,26 @@ function ItemView({ item }: { item: ScrollItem }) {
                 background: statusColor(item.status),
               }}
             />
-            <span style={{ fontWeight: 600, color: "#e8ecf4" }}>{item.title}</span>
+            <span style={{ fontWeight: 600, color: "var(--gb-ink)" }}>{item.title}</span>
             {item.toolKind ? (
-              <span style={{ fontSize: 11, color: "#8b95a8" }}>{item.toolKind}</span>
+              <span style={{ fontSize: 11, color: "var(--gb-ink-muted)" }}>{item.toolKind}</span>
             ) : null}
-            <span style={{ fontSize: 11, color: "#8b95a8" }}>{item.status}</span>
+            <span style={{ fontSize: 11, color: "var(--gb-ink-muted)" }}>{item.status}</span>
             {item.locations && item.locations.length > 0 ? (
-              <span style={{ fontSize: 11, color: "#7c9cff" }}>
+              <span style={{ fontSize: 11, color: "var(--gb-accent)" }}>
                 {item.locations.slice(0, 2).join(", ")}
                 {item.locations.length > 2 ? ` +${item.locations.length - 2}` : ""}
+              </span>
+            ) : null}
+            {showTimestamps && formatTs(item.ts) ? (
+              <span
+                style={{
+                  marginLeft: "auto",
+                  fontSize: 10,
+                  color: "var(--gb-ink-muted)",
+                }}
+              >
+                {formatTs(item.ts)}
               </span>
             ) : null}
           </summary>
@@ -236,7 +310,7 @@ function ItemView({ item }: { item: ScrollItem }) {
               <div
                 style={{
                   fontSize: 10,
-                  color: "#8b95a8",
+                  color: "var(--gb-ink-muted)",
                   textTransform: "uppercase",
                   letterSpacing: "0.04em",
                   marginBottom: 4,
@@ -251,11 +325,11 @@ function ItemView({ item }: { item: ScrollItem }) {
                   overflow: "auto",
                   whiteSpace: "pre-wrap",
                   fontSize: 11,
-                  color: "#8b95a8",
-                  background: "#0c0e12",
+                  color: "var(--gb-ink-muted)",
+                  background: "var(--gb-surface)",
                   borderRadius: 8,
                   padding: 8,
-                  border: "1px solid #2a3140",
+                  border: "1px solid var(--gb-border)",
                 }}
               >
                 {item.input}
@@ -268,7 +342,7 @@ function ItemView({ item }: { item: ScrollItem }) {
               <div
                 style={{
                   fontSize: 10,
-                  color: "#8b95a8",
+                  color: "var(--gb-ink-muted)",
                   textTransform: "uppercase",
                   letterSpacing: "0.04em",
                   marginBottom: 4,
@@ -286,11 +360,11 @@ function ItemView({ item }: { item: ScrollItem }) {
                     overflow: "auto",
                     whiteSpace: "pre-wrap",
                     fontSize: 11,
-                    color: "#8b95a8",
-                    background: "#0c0e12",
+                    color: "var(--gb-ink-muted)",
+                    background: "var(--gb-surface)",
                     borderRadius: 8,
                     padding: 8,
-                    border: "1px solid #2a3140",
+                    border: "1px solid var(--gb-border)",
                   }}
                 >
                   {item.output}
@@ -304,27 +378,17 @@ function ItemView({ item }: { item: ScrollItem }) {
     case "plan":
       return (
         <div
+          className="gb-scroll-item"
           style={{
             borderRadius: 12,
-            border: "1px solid #2a3140",
-            background: "#141820",
-            padding: "12px 16px",
+            border: "1px solid var(--gb-border)",
+            background: "var(--gb-surface-raised)",
+            padding: pad,
             contentVisibility: "auto",
             containIntrinsicSize: "auto 80px",
           }}
         >
-          <div
-            style={{
-              marginBottom: 8,
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: "0.04em",
-              textTransform: "uppercase",
-              color: "#7c9cff",
-            }}
-          >
-            Plan
-          </div>
+          <LabelRow label="Plan" color="var(--gb-accent)" ts={item.ts} showTs={showTimestamps} />
           <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
             {item.entries.map((e, i) => (
               <li
@@ -334,11 +398,11 @@ function ItemView({ item }: { item: ScrollItem }) {
                   gap: 8,
                   alignItems: "flex-start",
                   padding: "4px 0",
-                  fontSize: 13,
+                  fontSize: compact ? 12 : 13,
                   color:
                     e.status === "completed" || e.status === "done"
-                      ? "#8b95a8"
-                      : "#e8ecf4",
+                      ? "var(--gb-ink-muted)"
+                      : "var(--gb-ink)",
                   textDecoration:
                     e.status === "completed" || e.status === "done"
                       ? "line-through"
@@ -357,22 +421,37 @@ function ItemView({ item }: { item: ScrollItem }) {
     case "system":
       return (
         <div
+          className="gb-scroll-item"
           style={{
             borderRadius: 8,
-            padding: "8px 12px",
-            fontSize: 13,
+            padding: compact ? "6px 10px" : "8px 12px",
+            fontSize: compact ? 12 : 13,
             border:
               item.level === "error"
                 ? "1px solid rgba(240,113,120,0.4)"
-                : "1px solid #2a3140",
+                : "1px solid var(--gb-border)",
             background:
-              item.level === "error" ? "rgba(240,113,120,0.1)" : "#1a1f2a",
-            color: item.level === "error" ? "#f07178" : "#8b95a8",
+              item.level === "error" ? "rgba(240,113,120,0.1)" : "var(--gb-surface-overlay)",
+            color: item.level === "error" ? "var(--gb-danger)" : "var(--gb-ink-muted)",
             contentVisibility: "auto",
             containIntrinsicSize: "auto 40px",
+            display: "flex",
+            justifyContent: "space-between",
+            gap: 8,
           }}
         >
-          {asDisplayText(item.text)}
+          <span>{asDisplayText(item.text)}</span>
+          {showTimestamps && formatTs(item.ts) ? (
+            <span
+              style={{
+                flexShrink: 0,
+                fontSize: 10,
+                fontFamily: "ui-monospace, Menlo, monospace",
+              }}
+            >
+              {formatTs(item.ts)}
+            </span>
+          ) : null}
         </div>
       );
   }
@@ -383,6 +462,9 @@ export function Scrollback() {
   const findOpen = useAppStore((s) => s.findOpen);
   const findQuery = useAppStore((s) => s.findQuery);
   const findIndex = useAppStore((s) => s.findIndex);
+  const scrollToIndex = useAppStore((s) => s.scrollToIndex);
+  const setScrollToIndex = useAppStore((s) => s.setScrollToIndex);
+  const compact = useAppStore((s) => s.compactMode);
   const parentRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
 
@@ -416,20 +498,18 @@ export function Scrollback() {
     estimateSize: (i) => {
       const it = items[i];
       if (!it) return 80;
-      if (it.kind === "system") return 48;
-      if (it.kind === "thought") return 56;
-      if (it.kind === "tool") return 88;
-      if (it.kind === "plan") return 100;
-      if (it.kind === "user") return 72;
-      // agent messages grow; estimate from text length
+      if (it.kind === "system") return compact ? 40 : 48;
+      if (it.kind === "thought") return compact ? 48 : 56;
+      if (it.kind === "tool") return compact ? 72 : 88;
+      if (it.kind === "plan") return compact ? 84 : 100;
+      if (it.kind === "user") return compact ? 60 : 72;
       const len = it.kind === "agent" ? it.text.length : 0;
-      return Math.min(480, Math.max(80, 48 + Math.floor(len / 4)));
+      return Math.min(480, Math.max(compact ? 64 : 80, 48 + Math.floor(len / 4)));
     },
     overscan: 8,
     getItemKey: (i) => items[i]?.id ?? i,
   });
 
-  // Stick to bottom while the user is near the end.
   useEffect(() => {
     const el = parentRef.current;
     if (!el) return;
@@ -443,8 +523,23 @@ export function Scrollback() {
 
   useEffect(() => {
     if (!stickToBottom.current || items.length === 0) return;
+    if (scrollToIndex != null) return;
     virtualizer.scrollToIndex(items.length - 1, { align: "end" });
-  }, [items.length, items[items.length - 1]?.id, virtualizer]);
+  }, [items.length, items[items.length - 1]?.id, virtualizer, scrollToIndex]);
+
+  // Consume jump / timeline scroll requests.
+  useEffect(() => {
+    if (scrollToIndex == null) return;
+    if (scrollToIndex < 0 || scrollToIndex >= items.length) {
+      setScrollToIndex(null);
+      return;
+    }
+    stickToBottom.current = false;
+    virtualizer.scrollToIndex(scrollToIndex, { align: "start" });
+    // Keep highlight briefly then clear target so stick-to-bottom can resume later.
+    const t = window.setTimeout(() => setScrollToIndex(null), 800);
+    return () => window.clearTimeout(t);
+  }, [scrollToIndex, items.length, virtualizer, setScrollToIndex]);
 
   if (items.length === 0) {
     return (
@@ -456,11 +551,11 @@ export function Scrollback() {
           justifyContent: "center",
           padding: 32,
           textAlign: "center",
-          color: "#8b95a8",
+          color: "var(--gb-ink-muted)",
         }}
       >
         <div>
-          <p style={{ margin: 0, fontSize: 18, color: "#e8ecf4" }}>
+          <p style={{ margin: 0, fontSize: 18, color: "var(--gb-ink)" }}>
             Start a conversation
           </p>
           <p style={{ marginTop: 8, fontSize: 14 }}>
@@ -473,14 +568,16 @@ export function Scrollback() {
   }
 
   const vItems = virtualizer.getVirtualItems();
+  const gap = compact ? 8 : 12;
 
   return (
     <div
       ref={parentRef}
+      className="gb-scrollback"
       style={{
         flex: 1,
         overflowY: "auto",
-        padding: "16px",
+        padding: compact ? "10px 12px" : "16px",
         minHeight: 0,
       }}
     >
@@ -494,6 +591,7 @@ export function Scrollback() {
         {vItems.map((v) => {
           const item = items[v.index];
           if (!item) return null;
+          const jumped = scrollToIndex === v.index;
           return (
             <div
               key={item.id}
@@ -506,9 +604,9 @@ export function Scrollback() {
                 left: 0,
                 width: "100%",
                 transform: `translateY(${v.start}px)`,
-                paddingBottom: 12,
+                paddingBottom: gap,
                 outline:
-                  v.index === activeMatch
+                  jumped || v.index === activeMatch
                     ? "2px solid var(--gb-accent)"
                     : matchIndices.has(v.index)
                       ? "1px solid var(--gb-accent-dim)"

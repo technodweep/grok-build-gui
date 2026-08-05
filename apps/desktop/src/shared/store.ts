@@ -81,6 +81,21 @@ interface AppState {
   planModeState: PlanModeState | null;
   /** ACP elicitation/create queue. */
   elicitations: ElicitationRequest[];
+  /** Compact chat density. */
+  compactMode: boolean;
+  /** Show timestamps on scroll items. */
+  showTimestamps: boolean;
+  /**
+   * Fold policy for tool/thought details:
+   * default = open while running; all-open / all-closed force.
+   */
+  foldPolicy: "default" | "all-open" | "all-closed";
+  /** Timeline / jump outline open. */
+  timelineOpen: boolean;
+  /** Scroll target index (set by turn jump / timeline); Scrollback consumes and clears. */
+  scrollToIndex: number | null;
+  /** Last focused item index for turn navigation (persists after scrollToIndex clears). */
+  turnFocusIndex: number | null;
 
   setEnv: (env: EnvironmentInfo | null) => void;
   setStatus: (status: AgentStatus) => void;
@@ -154,6 +169,13 @@ interface AppState {
   enqueueElicitation: (req: ElicitationRequest) => void;
   dequeueElicitation: () => void;
   clearElicitations: () => void;
+  setCompactMode: (v: boolean) => void;
+  setShowTimestamps: (v: boolean) => void;
+  setFoldPolicy: (p: "default" | "all-open" | "all-closed") => void;
+  setTimelineOpen: (v: boolean) => void;
+  setScrollToIndex: (i: number | null) => void;
+  /** Jump to prev/next user turn relative to current scroll focus. */
+  jumpUserTurn: (dir: -1 | 1) => number | null;
   /**
    * Drop the last `turns` user turns (and everything after the cut point).
    * Returns number of items removed.
@@ -237,6 +259,41 @@ const CLIENT_COMMANDS: SlashCommand[] = [
     name: "copy",
     description: "Copy Nth agent reply (default 1 = latest) or write to path",
     inputHint: "n | path",
+    source: "client",
+  },
+  {
+    name: "timestamps",
+    description: "Toggle message timestamps",
+    source: "client",
+  },
+  {
+    name: "compact-mode",
+    description: "Toggle compact chat density",
+    source: "client",
+  },
+  {
+    name: "timeline",
+    description: "Open turn outline / jump list",
+    source: "client",
+  },
+  {
+    name: "usage",
+    description: "Show usage panel (and run agent /usage)",
+    source: "client",
+  },
+  {
+    name: "fold",
+    description: "Collapse all tools/thinking (alias: /collapse)",
+    source: "client",
+  },
+  {
+    name: "collapse",
+    description: "Alias for /fold",
+    source: "client",
+  },
+  {
+    name: "expand",
+    description: "Expand all tools/thinking",
     source: "client",
   },
   {
@@ -354,6 +411,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   planMarkdown: null,
   planModeState: null,
   elicitations: [],
+  compactMode: false,
+  showTimestamps: false,
+  foldPolicy: "default",
+  timelineOpen: false,
+  scrollToIndex: null,
+  turnFocusIndex: null,
 
   setEnv: (env) => set({ env }),
   setStatus: (status) => set({ status }),
@@ -401,7 +464,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   pushItem: (item, sessionId) =>
-    withSessionItems(get, set, sessionId, (items) => [...items, item]),
+    withSessionItems(get, set, sessionId, (items) => [
+      ...items,
+      item.ts != null ? item : { ...item, ts: Date.now() },
+    ]),
 
   appendAgentText: (text, sessionId) =>
     withSessionItems(get, set, sessionId, (items) => {
@@ -416,7 +482,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         updated[updated.length - 1] = { ...last, text: prev + chunk };
         return updated;
       }
-      return [...items, { id: nextId(), kind: "agent", text: chunk }];
+      return [
+        ...items,
+        { id: nextId(), kind: "agent", text: chunk, ts: Date.now() },
+      ];
     }),
 
   appendThoughtText: (text, sessionId) =>
@@ -431,7 +500,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         updated[updated.length - 1] = { ...last, text: prev + chunk };
         return updated;
       }
-      return [...items, { id: nextId(), kind: "thought", text: chunk }];
+      return [
+        ...items,
+        { id: nextId(), kind: "thought", text: chunk, ts: Date.now() },
+      ];
     }),
 
   upsertTool: (tool, sessionId) =>
@@ -469,6 +541,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           output: tool.output,
           locations: tool.locations,
           contentBlocks: tool.contentBlocks,
+          ts: Date.now(),
         },
       ];
     }),
@@ -478,10 +551,16 @@ export const useAppStore = create<AppState>((set, get) => ({
       const idx = items.findIndex((i) => i.kind === "plan");
       if (idx >= 0) {
         const updated = [...items];
-        updated[idx] = { id: items[idx].id, kind: "plan", entries };
+        const prev = items[idx];
+        updated[idx] = {
+          id: prev.id,
+          kind: "plan",
+          entries,
+          ts: prev.kind === "plan" ? prev.ts : Date.now(),
+        };
         return updated;
       }
-      return [...items, { id: nextId(), kind: "plan", entries }];
+      return [...items, { id: nextId(), kind: "plan", entries, ts: Date.now() }];
     }),
 
   loadScrollForSession: (sessionId) => {
@@ -639,6 +718,49 @@ export const useAppStore = create<AppState>((set, get) => ({
   dequeueElicitation: () =>
     set((s) => ({ elicitations: s.elicitations.slice(1) })),
   clearElicitations: () => set({ elicitations: [] }),
+  setCompactMode: (compactMode) => {
+    set({ compactMode });
+    document.documentElement.setAttribute(
+      "data-density",
+      compactMode ? "compact" : "comfortable",
+    );
+  },
+  setShowTimestamps: (showTimestamps) => set({ showTimestamps }),
+  setFoldPolicy: (foldPolicy) => set({ foldPolicy }),
+  setTimelineOpen: (timelineOpen) => set({ timelineOpen }),
+  setScrollToIndex: (scrollToIndex) =>
+    set(
+      scrollToIndex != null
+        ? { scrollToIndex, turnFocusIndex: scrollToIndex }
+        : { scrollToIndex: null },
+    ),
+  jumpUserTurn: (dir) => {
+    const items = get().items;
+    const userIdxs: number[] = [];
+    items.forEach((it, i) => {
+      if (it.kind === "user") userIdxs.push(i);
+    });
+    if (userIdxs.length === 0) return null;
+    const cur = get().turnFocusIndex ?? get().scrollToIndex;
+    // Find nearest user turn at or before current focus; default last.
+    let pos = userIdxs.length - 1;
+    if (cur != null) {
+      const exact = userIdxs.indexOf(cur);
+      if (exact >= 0) pos = exact;
+      else {
+        for (let i = userIdxs.length - 1; i >= 0; i--) {
+          if (userIdxs[i] <= cur) {
+            pos = i;
+            break;
+          }
+        }
+      }
+    }
+    const next = Math.max(0, Math.min(userIdxs.length - 1, pos + dir));
+    const target = userIdxs[next];
+    set({ scrollToIndex: target, turnFocusIndex: target });
+    return target;
+  },
 
   rewindTurns: (turns = 1) => {
     const n = Math.max(1, Math.floor(turns));

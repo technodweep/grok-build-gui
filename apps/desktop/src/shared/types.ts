@@ -115,6 +115,10 @@ export interface GuiSettings {
    * When false (default): Enter sends, Shift+Enter newline.
    */
   multilineMode?: boolean;
+  /** Tighter chat density. */
+  compactMode?: boolean;
+  /** Show timestamps on scroll items. */
+  showTimestamps?: boolean;
 }
 
 export interface McpServerInfo {
@@ -192,10 +196,11 @@ export interface PlanEntry {
   priority?: string;
 }
 
+/** Unix ms when the item was first created (optional; may be missing on hydrate). */
 export type ScrollItem =
-  | { id: string; kind: "user"; text: string }
-  | { id: string; kind: "agent"; text: string }
-  | { id: string; kind: "thought"; text: string }
+  | { id: string; kind: "user"; text: string; ts?: number }
+  | { id: string; kind: "agent"; text: string; ts?: number }
+  | { id: string; kind: "thought"; text: string; ts?: number }
   | {
       id: string;
       kind: "tool";
@@ -208,13 +213,15 @@ export type ScrollItem =
       locations?: string[];
       /** Structured ACP tool content (diffs, text blocks). */
       contentBlocks?: ToolContentBlock[];
+      ts?: number;
     }
   | {
       id: string;
       kind: "plan";
       entries: PlanEntry[];
+      ts?: number;
     }
-  | { id: string; kind: "system"; text: string; level?: "info" | "error" };
+  | { id: string; kind: "system"; text: string; level?: "info" | "error"; ts?: number };
 
 export interface PermissionOption {
   optionId: string;

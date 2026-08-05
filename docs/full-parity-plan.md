@@ -81,12 +81,12 @@
 | Find in scrollback | **Partial** | Basic find; no jump/timeline |
 | Virtualized scrollback | **Done** | |
 | Stream batching | **Done** | |
-| Markdown / code highlight | **Partial** | Markdown yes; syntax highlight no |
-| Fold / expand blocks | **Gap** | Tools, thoughts, groups |
-| Compact UI density | **Gap** | `/compact-mode` |
-| Timestamps on messages | **Gap** | `/timestamps` |
+| Markdown / code highlight | **Done** | GFM + fence highlighter |
+| Fold / expand blocks | **Done** | Tools/thoughts + fold/expand all |
+| Compact UI density | **Done** | `/compact-mode` + settings |
+| Timestamps on messages | **Done** | `/timestamps` + settings |
 | Raw markdown toggle | **Gap** | |
-| Turn navigation (prev/next user turn) | **Gap** | Desktop keys, not vim-required |
+| Turn navigation (prev/next user turn) | **Done** | Alt+↑/↓ + timeline |
 
 ### 4.2 Sessions
 
@@ -123,11 +123,11 @@
 
 | Feature | Status | Notes / approach |
 |---------|--------|------------------|
-| Context window bar | **Partial** | From signals + last tokens |
-| Full `/context` categories | **Gap** | Needs agent data or derived estimate |
-| Session info panel | **Partial** | |
+| Context window bar | **Done** | From signals + last tokens + categories |
+| Full `/context` categories | **Done** | Best-effort from scrollback scaled to used |
+| Session info panel | **Done** | Context panel |
 | Live turn usage | **Done** | `turn_completed.usage` |
-| Account `/usage` billing | **Gap** | Agent/API surface TBD |
+| Account `/usage` billing | **Partial** | Usage tab + agent `/usage` |
 | Background tasks panel | **Gap** | Monitor `run_terminal_command` background + tools |
 | Workflows dashboard | **Gap** | `/workflows` parity UI |
 | Doctor / health | **Gap** | `/doctor` as agent run + structured panel |
@@ -284,6 +284,15 @@ Build in vertical slices that stay shippable. Each phase ends with: checklist up
 | C6 | **Timestamps** | Optional per-message timestamps |
 | C7 | **Turn jump** | Prev/next user turn shortcuts |
 | C8 | **Jump / timeline** | Outline of turns for quick navigation |
+
+**Phase C status (2026-08-05):** Implemented.
+- Context panel category bars (scrollback estimate scaled to `signals.json` used tokens)
+- Usage tab: account auth, session/last-turn stats, **Run agent /usage**
+- Zero-dep code fence highlighting (JS/TS/Python/Rust/Go/shell/…)
+- Fold/expand all tools & thinking (`/fold`, `/expand`, chat toolbar)
+- Compact density (`/compact-mode`, settings, `data-density`)
+- Optional timestamps (`/timestamps`, settings)
+- Turn jump Alt+↑/↓ + toolbar; Timeline panel (`/timeline`, Ctrl+G)
 
 **Exit criteria:** Power users can navigate long sessions like the TUI pager.
 
