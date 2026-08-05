@@ -33,6 +33,8 @@ const ROWS: { keys: string; action: string }[] = [
   { keys: "/copy [n] [path]", action: "Copy Nth agent reply or write file" },
   { keys: "/multiline", action: "Toggle Enter=newline mode" },
   { keys: "/settings", action: "Open settings" },
+  { keys: "/plugins · /extensions", action: "Extensions hub (MCP, skills, plugins, hooks)" },
+  { keys: "/mcp · /skills · /hooks · /marketplace", action: "Open extensions on that tab" },
   { keys: "/shortcuts", action: "Open this cheatsheet" },
   { keys: "/context", action: "Context window usage panel" },
   { keys: "/usage", action: "Usage panel + agent /usage" },

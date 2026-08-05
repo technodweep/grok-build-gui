@@ -85,6 +85,8 @@ export function Composer() {
   const setFoldPolicy = useAppStore((s) => s.setFoldPolicy);
   const setTimelineOpen = useAppStore((s) => s.setTimelineOpen);
   const timelineOpen = useAppStore((s) => s.timelineOpen);
+  const setExtensionsOpen = useAppStore((s) => s.setExtensionsOpen);
+  const setExtensionsTab = useAppStore((s) => s.setExtensionsTab);
 
   const [sending, setSending] = useState(false);
   const [palette, setPalette] = useState<PaletteMode>(null);
@@ -279,6 +281,27 @@ export function Composer() {
       }
       case "settings": {
         setSettingsOpen(true);
+        break;
+      }
+      case "plugins":
+      case "extensions":
+      case "mcp":
+      case "mcps":
+      case "skills":
+      case "hooks":
+      case "marketplace": {
+        const tab =
+          name === "mcp" || name === "mcps"
+            ? "mcp"
+            : name === "skills"
+              ? "skills"
+              : name === "hooks"
+                ? "hooks"
+                : name === "marketplace"
+                  ? "marketplace"
+                  : "plugins";
+        setExtensionsTab(tab);
+        setExtensionsOpen(true);
         break;
       }
       case "shortcuts": {

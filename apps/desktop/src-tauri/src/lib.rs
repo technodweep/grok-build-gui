@@ -14,8 +14,11 @@ use acp::{
     TerminalSnapshot,
 };
 use config::{
-    environment_info, load_grok_config_overview, load_settings, save_settings, EnvironmentInfo,
-    GrokConfigOverview, GuiSettings,
+    add_mcp_server, environment_info, load_extensions_hub, load_grok_config_overview,
+    load_settings, plugin_install, plugin_set_enabled, plugin_uninstall, remove_mcp_server,
+    save_settings, set_hook_enabled, set_mcp_enabled, set_project_trust, set_skill_disabled,
+    AddMcpArgs, EnvironmentInfo, ExtensionsHub, GrokConfigOverview, GuiSettings, HookInfo,
+    McpServerInfo, TrustedFolder,
 };
 use error::AppResult;
 use fs_index::FileEntry;
@@ -360,6 +363,98 @@ fn get_grok_config_path() -> String {
 }
 
 #[tauri::command]
+fn get_extensions_hub(args: GrokConfigArgs) -> AppResult<ExtensionsHub> {
+    load_extensions_hub(args.project_cwd.as_deref())
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NamedEnabledArgs {
+    name: String,
+    enabled: bool,
+}
+
+#[tauri::command]
+fn set_mcp_server_enabled(args: NamedEnabledArgs) -> AppResult<McpServerInfo> {
+    set_mcp_enabled(&args.name, args.enabled)
+}
+
+#[tauri::command]
+fn add_mcp_server_cmd(args: AddMcpArgs) -> AppResult<McpServerInfo> {
+    add_mcp_server(args)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NameArgs {
+    name: String,
+}
+
+#[tauri::command]
+fn remove_mcp_server_cmd(args: NameArgs) -> AppResult<()> {
+    remove_mcp_server(&args.name)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SkillDisableArgs {
+    name: String,
+    disabled: bool,
+}
+
+#[tauri::command]
+fn set_skill_disabled_state(args: SkillDisableArgs) -> AppResult<Vec<String>> {
+    set_skill_disabled(&args.name, args.disabled)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct HookEnableArgs {
+    path: String,
+    enabled: bool,
+}
+
+#[tauri::command]
+fn set_hook_enabled_cmd(args: HookEnableArgs) -> AppResult<HookInfo> {
+    set_hook_enabled(&args.path, args.enabled)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TrustArgs {
+    path: String,
+    trusted: bool,
+}
+
+#[tauri::command]
+fn set_project_trust_cmd(args: TrustArgs) -> AppResult<Vec<TrustedFolder>> {
+    set_project_trust(&args.path, args.trusted)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PluginInstallArgs {
+    source: String,
+    #[serde(default)]
+    trust: bool,
+}
+
+#[tauri::command]
+fn plugin_install_cmd(args: PluginInstallArgs) -> AppResult<String> {
+    plugin_install(&args.source, args.trust)
+}
+
+#[tauri::command]
+fn plugin_uninstall_cmd(args: NameArgs) -> AppResult<String> {
+    plugin_uninstall(&args.name)
+}
+
+#[tauri::command]
+fn plugin_set_enabled_cmd(args: NamedEnabledArgs) -> AppResult<String> {
+    plugin_set_enabled(&args.name, args.enabled)
+}
+
+#[tauri::command]
 fn list_live_sessions(handle: tauri::State<'_, Arc<AcpHandle>>) -> Vec<LiveSession> {
     handle.list_live_sessions()
 }
@@ -567,6 +662,16 @@ pub fn run() {
             set_gui_settings,
             get_grok_config_overview,
             get_grok_config_path,
+            get_extensions_hub,
+            set_mcp_server_enabled,
+            add_mcp_server_cmd,
+            remove_mcp_server_cmd,
+            set_skill_disabled_state,
+            set_hook_enabled_cmd,
+            set_project_trust_cmd,
+            plugin_install_cmd,
+            plugin_uninstall_cmd,
+            plugin_set_enabled_cmd,
             list_live_sessions,
             list_terminals,
             write_export_file,

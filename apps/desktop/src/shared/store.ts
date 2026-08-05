@@ -56,6 +56,9 @@ interface AppState {
   shortcutsOpen: boolean;
   contextOpen: boolean;
   modelsOpen: boolean;
+  extensionsOpen: boolean;
+  /** Preferred tab when opening extensions hub. */
+  extensionsTab: "mcp" | "skills" | "plugins" | "marketplace" | "hooks" | "trust";
   signals: SessionSignals | null;
   /** Subagents for the active (or last loaded) parent session. */
   subagents: SubagentInfo[];
@@ -147,6 +150,10 @@ interface AppState {
   setShortcutsOpen: (v: boolean) => void;
   setContextOpen: (v: boolean) => void;
   setModelsOpen: (v: boolean) => void;
+  setExtensionsOpen: (v: boolean) => void;
+  setExtensionsTab: (
+    t: "mcp" | "skills" | "plugins" | "marketplace" | "hooks" | "trust",
+  ) => void;
   setSignals: (s: SessionSignals | null) => void;
   setSubagents: (list: SubagentInfo[]) => void;
   upsertSubagent: (info: SubagentInfo) => void;
@@ -259,6 +266,21 @@ const CLIENT_COMMANDS: SlashCommand[] = [
     name: "copy",
     description: "Copy Nth agent reply (default 1 = latest) or write to path",
     inputHint: "n | path",
+    source: "client",
+  },
+  {
+    name: "plugins",
+    description: "Open extensions hub (MCP, skills, plugins, hooks)",
+    source: "client",
+  },
+  { name: "extensions", description: "Alias for /plugins", source: "client" },
+  { name: "mcp", description: "Extensions hub · MCP tab", source: "client" },
+  { name: "mcps", description: "Alias for /mcp", source: "client" },
+  { name: "skills", description: "Extensions hub · Skills tab", source: "client" },
+  { name: "hooks", description: "Extensions hub · Hooks tab", source: "client" },
+  {
+    name: "marketplace",
+    description: "Extensions hub · Marketplace tab",
     source: "client",
   },
   {
@@ -395,6 +417,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   shortcutsOpen: false,
   contextOpen: false,
   modelsOpen: false,
+  extensionsOpen: false,
+  extensionsTab: "mcp",
   signals: null,
   subagents: [],
   suppressHistoryUpdates: false,
@@ -655,6 +679,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
   setContextOpen: (contextOpen) => set({ contextOpen }),
   setModelsOpen: (modelsOpen) => set({ modelsOpen }),
+  setExtensionsOpen: (extensionsOpen) => set({ extensionsOpen }),
+  setExtensionsTab: (extensionsTab) => set({ extensionsTab }),
   setSignals: (signals) => set({ signals }),
   setSubagents: (subagents) => set({ subagents }),
   upsertSubagent: (info) => {

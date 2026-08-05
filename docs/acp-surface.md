@@ -90,6 +90,10 @@ Update this checklist as features land.
 - [x] Phase C: fold/expand tools & thinking
 - [x] Phase C: compact density + timestamps settings
 - [x] Phase C: turn jump (Alt+↑/↓) + timeline outline
+- [x] Phase D: Extensions hub (MCP / skills / plugins / marketplace / hooks / trust)
+- [x] Phase D: Safe config.toml MCP & skills edits (`toml_edit`)
+- [x] Phase D: `grok plugin` install/uninstall/enable with trust prompts
+- [x] Phase D: Folder trust store UI (`trusted_folders.toml`)
 
 ## Packaging (PR8)
 

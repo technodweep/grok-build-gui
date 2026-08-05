@@ -151,6 +151,51 @@ export interface GrokConfigOverview {
   parseError?: string | null;
 }
 
+export interface HookInfo {
+  name: string;
+  path: string;
+  scope: string;
+  events: string[];
+  trusted: boolean;
+  enabled: boolean;
+}
+
+export interface PluginInfo {
+  name: string;
+  description?: string | null;
+  version?: string | null;
+  installed: boolean;
+  enabled: boolean;
+  source?: string | null;
+  category?: string | null;
+  trusted: boolean;
+}
+
+export interface MarketplacePlugin {
+  name: string;
+  description?: string | null;
+  category?: string | null;
+  homepage?: string | null;
+  marketplace?: string | null;
+  installed: boolean;
+}
+
+export interface TrustedFolder {
+  path: string;
+  trusted: boolean;
+}
+
+export interface ExtensionsHub {
+  overview: GrokConfigOverview;
+  hooks: HookInfo[];
+  plugins: PluginInfo[];
+  marketplacePlugins: MarketplacePlugin[];
+  trustedFolders: TrustedFolder[];
+  projectCwd?: string | null;
+  projectTrusted: boolean;
+  notes: string[];
+}
+
 export interface SubagentInfo {
   id: string;
   parentSessionId: string;

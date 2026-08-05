@@ -3,9 +3,15 @@ use std::path::{Path, PathBuf};
 
 use crate::error::{AppError, AppResult};
 
+pub mod extensions;
 pub mod grok_config;
 pub mod settings;
-pub use grok_config::{load_grok_config_overview, GrokConfigOverview};
+pub use extensions::{
+    add_mcp_server, load_extensions_hub, plugin_install, plugin_set_enabled, plugin_uninstall,
+    remove_mcp_server, set_hook_enabled, set_mcp_enabled, set_project_trust, set_skill_disabled,
+    AddMcpArgs, ExtensionsHub, HookInfo, TrustedFolder,
+};
+pub use grok_config::{load_grok_config_overview, GrokConfigOverview, McpServerInfo};
 pub use settings::{load_settings, save_settings, GuiSettings};
 
 /// Resolve Grok home directory (`GROK_HOME` or `~/.grok`).

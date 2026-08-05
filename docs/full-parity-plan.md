@@ -147,13 +147,13 @@
 |---------|--------|------------------|
 | Config overview (read-only) | **Done** | Settings → Grok config |
 | Open config.toml | **Done** | |
-| MCP list / enable-disable UI | **Gap** | Edit TOML or agent APIs safely |
-| MCP detail / tools list | **Gap** | Prefer agent discovery events |
-| Skills browser | **Partial** | List only |
-| Plugins install/uninstall | **Gap** | Marketplace + trust |
-| Marketplace browser | **Gap** | |
-| Hooks manager | **Gap** | Trust model critical |
-| Project trust UX | **Gap** | |
+| MCP list / enable-disable UI | **Done** | Extensions hub + TOML edit |
+| MCP detail / tools list | **Partial** | Transport/command; live tools later |
+| Skills browser | **Done** | Detail + disable + open path |
+| Plugins install/uninstall | **Done** | CLI + trust confirm |
+| Marketplace browser | **Done** | marketplace-cache catalog |
+| Hooks manager | **Done** | List/toggle + trust gate |
+| Project trust UX | **Done** | trusted_folders.toml |
 
 ### 4.7 Agents, personas, subagents
 
@@ -310,6 +310,15 @@ Build in vertical slices that stay shippable. Each phase ends with: checklist up
 | D6 | **Marketplace browse** | Read marketplace-cache + install actions |
 | D7 | **Hooks manager** | List/toggle; respect project trust |
 | D8 | **Project trust UX** | Explicit trust for project hooks/config |
+
+**Phase D status (2026-08-05):** Implemented.
+- Extensions modal (status bar + `/plugins` / `/mcp` / `/skills` / `/hooks` / `/marketplace`)
+- MCP enable/disable/add/remove via `toml_edit` on `~/.grok/config.toml`
+- Skills browser + disable list write to `[skills].disabled`
+- Plugins: `grok plugin list/install/uninstall/enable/disable` with trust confirm
+- Marketplace: browse `~/.grok/marketplace-cache/**/marketplace.json` + install
+- Hooks: list user/project JSON; enable via rename `.disabled.json`
+- Project trust: read/write `~/.grok/trusted_folders.toml`
 
 **Exit criteria:** Users rarely need to hand-edit `config.toml` for extensions.
 

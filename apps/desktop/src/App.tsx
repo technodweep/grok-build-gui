@@ -19,6 +19,7 @@ import { SettingsModal } from "./features/settings/SettingsModal";
 import { ModelPickerModal } from "./features/settings/ModelPickerModal";
 import { ShortcutsModal } from "./features/settings/ShortcutsModal";
 import { HistoryPanel } from "./features/composer/HistoryPanel";
+import { ExtensionsModal } from "./features/extensions/ExtensionsModal";
 import { Welcome } from "./features/sessions/Welcome";
 import {
   getEnvironment,
@@ -638,6 +639,7 @@ export default function App() {
       <PlanViewer />
       <SettingsModal />
       <ModelPickerModal />
+      <ExtensionsModal />
       <HistoryPanel />
       <ShortcutsModal />
       <ContextPanel />

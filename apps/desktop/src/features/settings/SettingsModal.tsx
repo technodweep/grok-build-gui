@@ -325,8 +325,8 @@ function GrokConfigTab({
   return (
     <div>
       <p style={hint}>
-        Read-only overview of the Grok CLI config the agent uses. Edit{" "}
-        <code>config.toml</code> for MCP, models, and skills — the agent reloads on its own.
+        Overview of the Grok CLI config. For enable/disable, install, and trust, open the full{" "}
+        <strong>Extensions</strong> hub.
       </p>
 
       <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
@@ -335,6 +335,15 @@ function GrokConfigTab({
         </button>
         <button type="button" style={primary} onClick={onOpenFile}>
           Open config.toml
+        </button>
+        <button
+          type="button"
+          style={primary}
+          onClick={() => {
+            useAppStore.getState().setExtensionsOpen(true);
+          }}
+        >
+          Extensions hub
         </button>
       </div>
 

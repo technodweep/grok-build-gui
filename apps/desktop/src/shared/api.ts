@@ -150,6 +150,78 @@ export function getGrokConfigPath() {
   return invoke<string>("get_grok_config_path");
 }
 
+export function getExtensionsHub(projectCwd?: string | null) {
+  return invoke<import("./types").ExtensionsHub>("get_extensions_hub", {
+    args: { projectCwd: projectCwd ?? null },
+  });
+}
+
+export function setMcpServerEnabled(name: string, enabled: boolean) {
+  return invoke<import("./types").McpServerInfo>("set_mcp_server_enabled", {
+    args: { name, enabled },
+  });
+}
+
+export function addMcpServer(args: {
+  name: string;
+  command?: string | null;
+  args?: string[] | null;
+  url?: string | null;
+  enabled?: boolean;
+}) {
+  return invoke<import("./types").McpServerInfo>("add_mcp_server_cmd", {
+    args: {
+      name: args.name,
+      command: args.command ?? null,
+      args: args.args ?? null,
+      url: args.url ?? null,
+      enabled: args.enabled ?? true,
+    },
+  });
+}
+
+export function removeMcpServer(name: string) {
+  return invoke<void>("remove_mcp_server_cmd", {
+    args: { name },
+  });
+}
+
+export function setSkillDisabled(name: string, disabled: boolean) {
+  return invoke<string[]>("set_skill_disabled_state", {
+    args: { name, disabled },
+  });
+}
+
+export function setHookEnabled(path: string, enabled: boolean) {
+  return invoke<import("./types").HookInfo>("set_hook_enabled_cmd", {
+    args: { path, enabled },
+  });
+}
+
+export function setProjectTrust(path: string, trusted: boolean) {
+  return invoke<import("./types").TrustedFolder[]>("set_project_trust_cmd", {
+    args: { path, trusted },
+  });
+}
+
+export function pluginInstall(source: string, trust = true) {
+  return invoke<string>("plugin_install_cmd", {
+    args: { source, trust },
+  });
+}
+
+export function pluginUninstall(name: string) {
+  return invoke<string>("plugin_uninstall_cmd", {
+    args: { name },
+  });
+}
+
+export function pluginSetEnabled(name: string, enabled: boolean) {
+  return invoke<string>("plugin_set_enabled_cmd", {
+    args: { name, enabled },
+  });
+}
+
 export function listLiveSessions() {
   return invoke<LiveSession[]>("list_live_sessions");
 }
