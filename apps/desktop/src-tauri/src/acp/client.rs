@@ -217,6 +217,22 @@ impl AcpHandle {
             .unwrap_or_default()
     }
 
+    /// List sessions via live agent `session/list` when connected.
+    pub async fn list_agent_sessions(
+        &self,
+        cwd: Option<&str>,
+    ) -> AppResult<Vec<super::oneshot::AgentSessionInfo>> {
+        if self.inner.lock().is_none() {
+            return Err(AppError::NotConnected);
+        }
+        let mut params = json!({});
+        if let Some(c) = cwd {
+            params["cwd"] = json!(c);
+        }
+        let result = self.request("session/list", params).await?;
+        Ok(super::oneshot::parse_session_list(&result))
+    }
+
     pub fn session_cwd(&self) -> Option<PathBuf> {
         self.inner.lock().as_ref().map(|a| a.cwd.clone())
     }
@@ -562,6 +578,28 @@ impl AcpHandle {
             .inspect_err(|_| {
                 self.set_status(&app, AgentStatus::Error);
             })?;
+
+        // Prefer cached auth so session/new doesn't hit auth_required when token exists.
+        match self
+            .request(
+                "authenticate",
+                serde_json::json!({ "methodId": "cached_token" }),
+            )
+            .await
+        {
+            Ok(meta) => {
+                tracing::info!(
+                    target: "acp",
+                    "authenticate ok: {}",
+                    meta.pointer("/_meta/email")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("(no email)")
+                );
+            }
+            Err(e) => {
+                tracing::warn!(target: "acp", "authenticate cached_token: {e}");
+            }
+        }
 
         let cwd = cwd_for_handlers.display().to_string();
 

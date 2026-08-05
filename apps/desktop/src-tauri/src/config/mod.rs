@@ -3,7 +3,9 @@ use std::path::{Path, PathBuf};
 
 use crate::error::{AppError, AppResult};
 
+pub mod grok_config;
 pub mod settings;
+pub use grok_config::{load_grok_config_overview, GrokConfigOverview};
 pub use settings::{load_settings, save_settings, GuiSettings};
 
 /// Resolve Grok home directory (`GROK_HOME` or `~/.grok`).
@@ -81,13 +83,46 @@ pub struct EnvironmentInfo {
     pub binary_version: Option<String>,
     pub found: bool,
     pub auth_present: bool,
+    /// Best-effort email from `~/.grok/auth.json` when present.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth_email: Option<String>,
+    /// `Oidc` / `ApiKey` / etc. when detectable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth_mode: Option<String>,
+}
+
+/// Peek local auth file for display (does not validate the token).
+pub fn read_local_auth_meta() -> (bool, Option<String>, Option<String>) {
+    let home = grok_home();
+    let path = home.join("auth.json");
+    if let Ok(raw) = std::fs::read_to_string(&path) {
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&raw) {
+            let email = v
+                .get("email")
+                .or_else(|| v.pointer("/user/email"))
+                .or_else(|| v.pointer("/account/email"))
+                .and_then(|x| x.as_str())
+                .map(|s| s.to_string());
+            let mode = v
+                .get("auth_mode")
+                .or_else(|| v.get("authMode"))
+                .or_else(|| v.get("mode"))
+                .and_then(|x| x.as_str())
+                .map(|s| s.to_string());
+            return (true, email, mode);
+        }
+        return (true, None, None);
+    }
+    let env_key = std::env::var("XAI_API_KEY").is_ok() || std::env::var("GROK_API_KEY").is_ok();
+    if env_key {
+        return (true, None, Some("ApiKey".into()));
+    }
+    (false, None, None)
 }
 
 pub fn environment_info(binary_override: Option<&str>) -> EnvironmentInfo {
     let home = grok_home();
-    let auth_present = home.join("auth.json").is_file()
-        || std::env::var("XAI_API_KEY").is_ok()
-        || std::env::var("GROK_API_KEY").is_ok();
+    let (auth_present, auth_email, auth_mode) = read_local_auth_meta();
 
     let binary_path = detect_grok_binary(binary_override);
     let binary_version = binary_path.as_ref().and_then(|p| grok_version(p).ok());
@@ -98,6 +133,8 @@ pub fn environment_info(binary_override: Option<&str>) -> EnvironmentInfo {
         binary_version,
         found: binary_path.is_some(),
         auth_present,
+        auth_email,
+        auth_mode,
     }
 }
 

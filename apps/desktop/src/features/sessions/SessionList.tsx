@@ -3,6 +3,7 @@ import {
   connectAgent,
   deleteDiskSession,
   getSessionHistory,
+  listAgentSessions,
   listDiskSessions,
   renameDiskSession,
 } from "../../shared/api";
@@ -58,6 +59,7 @@ export function SessionList({
   const [loading, setLoading] = useState(false);
   const [filterAll, setFilterAll] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [source, setSource] = useState<"disk" | "merged">("disk");
 
   const setSession = useAppStore((s) => s.setSession);
   const setStatus = useAppStore((s) => s.setStatus);
@@ -70,7 +72,40 @@ export function SessionList({
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const list = await listDiskSessions(filterAll ? null : projectCwd || null);
+      const disk = await listDiskSessions(filterAll ? null : projectCwd || null);
+      const byId = new Map(disk.map((s) => [s.id, s]));
+      // Merge ACP session/list (live or short-lived agent) for titles/currency.
+      try {
+        const agent = await listAgentSessions(filterAll ? null : projectCwd || null);
+        for (const a of agent) {
+          const existing = byId.get(a.sessionId);
+          if (existing) {
+            byId.set(a.sessionId, {
+              ...existing,
+              title: a.title || existing.title,
+              updatedAt: a.updatedAt || existing.updatedAt,
+              cwd: a.cwd || existing.cwd,
+            });
+          } else {
+            byId.set(a.sessionId, {
+              id: a.sessionId,
+              title: a.title || `Session ${a.sessionId.slice(0, 8)}`,
+              cwd: a.cwd || projectCwd || "",
+              updatedAt: a.updatedAt ?? null,
+              createdAt: null,
+              modelId: null,
+              numMessages: null,
+              path: "",
+            });
+          }
+        }
+        setSource("merged");
+      } catch {
+        setSource("disk");
+      }
+      const list = Array.from(byId.values()).sort((a, b) =>
+        (b.updatedAt || "").localeCompare(a.updatedAt || ""),
+      );
       setSessions(list);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -186,6 +221,9 @@ export function SessionList({
           }}
         >
           Recent sessions
+          <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, marginLeft: 6 }}>
+            {source === "merged" ? "· disk + agent" : "· disk"}
+          </span>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <label style={{ fontSize: 12, color: "#8b95a8", display: "flex", gap: 4 }}>

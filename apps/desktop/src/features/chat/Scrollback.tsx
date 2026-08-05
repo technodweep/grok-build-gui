@@ -1,8 +1,9 @@
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useAppStore } from "../../shared/store";
-import type { ScrollItem } from "../../shared/types";
+import type { ScrollItem, ToolContentBlock } from "../../shared/types";
 import { DiffView } from "./DiffView";
 
 function statusColor(status: string): string {
@@ -20,6 +21,59 @@ function planStatusIcon(status: string): string {
   return "○";
 }
 
+function ContentBlocks({ blocks }: { blocks: ToolContentBlock[] }) {
+  return (
+    <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+      {blocks.map((b, i) => {
+        const t = (b.type ?? "").toLowerCase();
+        if (t === "diff") {
+          // Prefer pre-flattened unified text when parent already set output;
+          // still show path header.
+          return (
+            <div key={i}>
+              {b.path ? (
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: "#7c9cff",
+                    fontFamily: "ui-monospace, Menlo, monospace",
+                    marginBottom: 4,
+                  }}
+                >
+                  {b.path}
+                </div>
+              ) : null}
+            </div>
+          );
+        }
+        const text = b.text || b.content;
+        if (text) {
+          return (
+            <pre
+              key={i}
+              style={{
+                margin: 0,
+                maxHeight: 160,
+                overflow: "auto",
+                whiteSpace: "pre-wrap",
+                fontSize: 11,
+                color: "#8b95a8",
+                background: "#0c0e12",
+                borderRadius: 8,
+                padding: 8,
+                border: "1px solid #2a3140",
+              }}
+            >
+              {text}
+            </pre>
+          );
+        }
+        return null;
+      })}
+    </div>
+  );
+}
+
 function ItemView({ item }: { item: ScrollItem }) {
   switch (item.kind) {
     case "user":
@@ -30,6 +84,8 @@ function ItemView({ item }: { item: ScrollItem }) {
             border: "1px solid #2a3140",
             background: "#1e2a44",
             padding: "12px 16px",
+            contentVisibility: "auto",
+            containIntrinsicSize: "auto 72px",
           }}
         >
           <div
@@ -55,6 +111,8 @@ function ItemView({ item }: { item: ScrollItem }) {
             border: "1px solid #2a3140",
             background: "#12161e",
             padding: "12px 16px",
+            contentVisibility: "auto",
+            containIntrinsicSize: "auto 96px",
           }}
         >
           <div
@@ -84,6 +142,8 @@ function ItemView({ item }: { item: ScrollItem }) {
             padding: "8px 16px",
             fontSize: 13,
             color: "#8b95a8",
+            contentVisibility: "auto",
+            containIntrinsicSize: "auto 48px",
           }}
         >
           <summary
@@ -111,13 +171,15 @@ function ItemView({ item }: { item: ScrollItem }) {
         </details>
       );
     case "tool": {
+      const hasBlocks = (item.contentBlocks?.length ?? 0) > 0;
       const looksLikeDiff =
         !!item.output &&
         (item.output.includes("\n+") ||
           item.output.includes("\n-") ||
           item.toolKind === "edit" ||
           item.title.toLowerCase().includes("edit") ||
-          item.title.toLowerCase().includes("diff"));
+          item.title.toLowerCase().includes("diff") ||
+          item.contentBlocks?.some((b) => (b.type ?? "").toLowerCase() === "diff"));
       return (
         <details
           open={item.status !== "completed"}
@@ -128,6 +190,8 @@ function ItemView({ item }: { item: ScrollItem }) {
             padding: "10px 16px",
             fontFamily: "ui-monospace, Menlo, monospace",
             fontSize: 13,
+            contentVisibility: "auto",
+            containIntrinsicSize: "auto 64px",
           }}
         >
           <summary
@@ -192,6 +256,7 @@ function ItemView({ item }: { item: ScrollItem }) {
               </pre>
             </div>
           ) : null}
+          {hasBlocks ? <ContentBlocks blocks={item.contentBlocks!} /> : null}
           {item.output ? (
             <div style={{ marginTop: 10 }}>
               <div
@@ -238,6 +303,8 @@ function ItemView({ item }: { item: ScrollItem }) {
             border: "1px solid #2a3140",
             background: "#141820",
             padding: "12px 16px",
+            contentVisibility: "auto",
+            containIntrinsicSize: "auto 80px",
           }}
         >
           <div
@@ -295,6 +362,8 @@ function ItemView({ item }: { item: ScrollItem }) {
             background:
               item.level === "error" ? "rgba(240,113,120,0.1)" : "#1a1f2a",
             color: item.level === "error" ? "#f07178" : "#8b95a8",
+            contentVisibility: "auto",
+            containIntrinsicSize: "auto 40px",
           }}
         >
           {item.text}
@@ -305,11 +374,44 @@ function ItemView({ item }: { item: ScrollItem }) {
 
 export function Scrollback() {
   const items = useAppStore((s) => s.items);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const parentRef = useRef<HTMLDivElement>(null);
+  const stickToBottom = useRef(true);
+
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: (i) => {
+      const it = items[i];
+      if (!it) return 80;
+      if (it.kind === "system") return 48;
+      if (it.kind === "thought") return 56;
+      if (it.kind === "tool") return 88;
+      if (it.kind === "plan") return 100;
+      if (it.kind === "user") return 72;
+      // agent messages grow; estimate from text length
+      const len = it.kind === "agent" ? it.text.length : 0;
+      return Math.min(480, Math.max(80, 48 + Math.floor(len / 4)));
+    },
+    overscan: 8,
+    getItemKey: (i) => items[i]?.id ?? i,
+  });
+
+  // Stick to bottom while the user is near the end.
+  useEffect(() => {
+    const el = parentRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+      stickToBottom.current = dist < 120;
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+  }, []);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [items]);
+    if (!stickToBottom.current || items.length === 0) return;
+    virtualizer.scrollToIndex(items.length - 1, { align: "end" });
+  }, [items.length, items[items.length - 1]?.id, virtualizer]);
 
   if (items.length === 0) {
     return (
@@ -337,21 +439,47 @@ export function Scrollback() {
     );
   }
 
+  const vItems = virtualizer.getVirtualItems();
+
   return (
     <div
+      ref={parentRef}
       style={{
         flex: 1,
         overflowY: "auto",
         padding: "16px",
-        display: "flex",
-        flexDirection: "column",
-        gap: 12,
+        minHeight: 0,
       }}
     >
-      {items.map((item) => (
-        <ItemView key={item.id} item={item} />
-      ))}
-      <div ref={bottomRef} />
+      <div
+        style={{
+          height: virtualizer.getTotalSize(),
+          width: "100%",
+          position: "relative",
+        }}
+      >
+        {vItems.map((v) => {
+          const item = items[v.index];
+          if (!item) return null;
+          return (
+            <div
+              key={item.id}
+              data-index={v.index}
+              ref={virtualizer.measureElement}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                transform: `translateY(${v.start}px)`,
+                paddingBottom: 12,
+              }}
+            >
+              <ItemView item={item} />
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

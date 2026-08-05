@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import { connectAgent, getGuiSettings } from "../../shared/api";
+import { authenticateAgent, connectAgent, getEnvironment, getGuiSettings } from "../../shared/api";
 import { nextId, useAppStore } from "../../shared/store";
 import type { EnvironmentInfo } from "../../shared/types";
 import { SessionList } from "./SessionList";
@@ -30,8 +30,10 @@ export function Welcome({ env }: { env: EnvironmentInfo }) {
   const clearScroll = useAppStore((s) => s.clearScroll);
   const pushItem = useAppStore((s) => s.pushItem);
   const setView = useAppStore((s) => s.setView);
+  const setEnv = useAppStore((s) => s.setEnv);
   const error = useAppStore((s) => s.error);
   const [connecting, setConnecting] = useState(false);
+  const [authBusy, setAuthBusy] = useState(false);
 
   // Restore last project + yolo from ~/.grok/gui/settings.json
   useEffect(() => {
@@ -195,15 +197,62 @@ export function Welcome({ env }: { env: EnvironmentInfo }) {
               Binary: <span style={{ color: "#e8ecf4", fontFamily: "monospace" }}>{env.binaryPath}</span>
             </div>
             {env.binaryVersion ? <div style={{ marginTop: 4 }}>Version: {env.binaryVersion}</div> : null}
-            <div style={{ marginTop: 4 }}>
-              Auth:{" "}
-              {env.authPresent ? (
-                <span style={{ color: "#3dd68c" }}>detected</span>
-              ) : (
-                <span style={{ color: "#f0b429" }}>
-                  not found — run <code>grok</code> once to sign in
-                </span>
-              )}
+            <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span>
+                Auth:{" "}
+                {env.authPresent ? (
+                  <span style={{ color: "#3dd68c" }}>
+                    {env.authEmail || "signed in"}
+                    {env.authMode ? ` · ${env.authMode}` : ""}
+                  </span>
+                ) : (
+                  <span style={{ color: "#f0b429" }}>
+                    not found — run <code>grok</code> once, or verify token
+                  </span>
+                )}
+              </span>
+              {env.found ? (
+                <button
+                  type="button"
+                  style={{
+                    border: "1px solid #2a3140",
+                    background: "#1a1f2a",
+                    color: "#e8ecf4",
+                    borderRadius: 6,
+                    padding: "2px 8px",
+                    fontSize: 11,
+                    cursor: "pointer",
+                  }}
+                  disabled={authBusy}
+                  title="Call ACP authenticate with cached_token"
+                  onClick={() => {
+                    setAuthBusy(true);
+                    void authenticateAgent()
+                      .then(async (r) => {
+                        const meta = (r as { _meta?: { email?: string; auth_mode?: string } })
+                          ?._meta;
+                        const info = await getEnvironment();
+                        if (meta?.email || meta?.auth_mode) {
+                          setEnv({
+                            ...info,
+                            authPresent: true,
+                            authEmail: meta?.email ?? info.authEmail,
+                            authMode: meta?.auth_mode ?? info.authMode,
+                          });
+                        } else {
+                          setEnv(info);
+                        }
+                        setError(null);
+                      })
+                      .catch((e) => {
+                        setError(e instanceof Error ? e.message : String(e));
+                      })
+                      .finally(() => setAuthBusy(false));
+                  }}
+                >
+                  {authBusy ? "Checking…" : "Verify auth"}
+                </button>
+              ) : null}
             </div>
           </div>
 

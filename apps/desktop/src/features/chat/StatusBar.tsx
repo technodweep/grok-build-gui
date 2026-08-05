@@ -20,6 +20,7 @@ export function StatusBar() {
   const modelId = useAppStore((s) => s.modelId);
   const effort = useAppStore((s) => s.effort);
   const lastTokens = useAppStore((s) => s.lastTokens);
+  const lastUsage = useAppStore((s) => s.lastUsage);
   const signals = useAppStore((s) => s.signals);
   const setSettingsOpen = useAppStore((s) => s.setSettingsOpen);
   const setShortcutsOpen = useAppStore((s) => s.setShortcutsOpen);
@@ -66,11 +67,21 @@ export function StatusBar() {
           ? "var(--gb-danger)"
           : "var(--gb-ink-muted)";
 
-  const used = signals?.contextTokensUsed ?? lastTokens;
+  const used =
+    signals?.contextTokensUsed ?? lastUsage?.totalTokens ?? lastTokens;
   const windowTok = signals?.contextWindowTokens ?? 0;
   const usagePct =
     signals?.usagePercent ??
     (windowTok > 0 && used != null ? (used / windowTok) * 100 : null);
+  const turnHint =
+    lastUsage &&
+    (lastUsage.inputTokens != null || lastUsage.outputTokens != null)
+      ? `Last turn · in ${lastUsage.inputTokens?.toLocaleString() ?? "—"} · out ${lastUsage.outputTokens?.toLocaleString() ?? "—"}${
+          lastUsage.apiDurationMs != null
+            ? ` · ${(lastUsage.apiDurationMs / 1000).toFixed(1)}s`
+            : ""
+        }`
+      : null;
 
   const openContext = () => {
     setContextOpen(true);
@@ -160,7 +171,11 @@ export function StatusBar() {
           <button
             type="button"
             onClick={openContext}
-            title="Context usage — click for details (/context)"
+            title={
+              turnHint
+                ? `${turnHint}\nClick for context panel (/context)`
+                : "Context usage — click for details (/context)"
+            }
             style={{
               display: "inline-flex",
               alignItems: "center",

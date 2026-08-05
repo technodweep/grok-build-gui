@@ -9,10 +9,14 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use acp::{
-    AcpHandle, AgentStatus, ConnectOptions, LiveSession, PermissionDecision, SessionModelsState,
-    SessionState, TerminalSnapshot,
+    authenticate_cached, list_sessions_ephemeral, AcpHandle, AgentSessionInfo, AgentStatus,
+    ConnectOptions, LiveSession, PermissionDecision, SessionModelsState, SessionState,
+    TerminalSnapshot,
 };
-use config::{environment_info, load_settings, save_settings, EnvironmentInfo, GuiSettings};
+use config::{
+    environment_info, load_grok_config_overview, load_settings, save_settings, EnvironmentInfo,
+    GrokConfigOverview, GuiSettings,
+};
 use error::AppResult;
 use fs_index::FileEntry;
 use serde::Deserialize;
@@ -307,6 +311,25 @@ fn set_gui_settings(settings: GuiSettings) -> AppResult<()> {
     save_settings(&settings)
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GrokConfigArgs {
+    #[serde(default)]
+    project_cwd: Option<String>,
+}
+
+#[tauri::command]
+fn get_grok_config_overview(args: GrokConfigArgs) -> AppResult<GrokConfigOverview> {
+    load_grok_config_overview(args.project_cwd.as_deref())
+}
+
+#[tauri::command]
+fn get_grok_config_path() -> String {
+    config::grok_config::config_toml_path()
+        .display()
+        .to_string()
+}
+
 #[tauri::command]
 fn list_live_sessions(handle: tauri::State<'_, Arc<AcpHandle>>) -> Vec<LiveSession> {
     handle.list_live_sessions()
@@ -318,6 +341,39 @@ fn list_terminals(handle: tauri::State<'_, Arc<AcpHandle>>) -> Vec<TerminalSnaps
 }
 
 /// Write an export file chosen by the user (save dialog). Not sandboxed to project cwd.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ListAgentSessionsArgs {
+    #[serde(default)]
+    cwd: Option<String>,
+    #[serde(default)]
+    binary_override: Option<String>,
+}
+
+#[tauri::command]
+async fn list_agent_sessions(
+    handle: tauri::State<'_, Arc<AcpHandle>>,
+    args: ListAgentSessionsArgs,
+) -> AppResult<Vec<AgentSessionInfo>> {
+    let cwd = args.cwd.as_deref();
+    // Prefer live connection when agent is ready.
+    if handle.status() == AgentStatus::Ready {
+        if let Ok(list) = handle.list_agent_sessions(cwd).await {
+            return Ok(list);
+        }
+    }
+    let settings = load_settings();
+    let binary = args.binary_override.or(settings.binary_override);
+    list_sessions_ephemeral(cwd, binary.as_deref()).await
+}
+
+#[tauri::command]
+async fn authenticate_agent(binary_override: Option<String>) -> AppResult<Value> {
+    let settings = load_settings();
+    let binary = binary_override.or(settings.binary_override);
+    authenticate_cached(binary.as_deref()).await
+}
+
 #[tauri::command]
 fn write_export_file(path: String, content: String) -> AppResult<()> {
     let p = PathBuf::from(&path);
@@ -444,6 +500,8 @@ pub fn run() {
             cancel_turn,
             respond_permission,
             list_disk_sessions,
+            list_agent_sessions,
+            authenticate_agent,
             delete_disk_session,
             rename_disk_session,
             get_session_history,
@@ -451,6 +509,8 @@ pub fn run() {
             list_session_subagents,
             get_gui_settings,
             set_gui_settings,
+            get_grok_config_overview,
+            get_grok_config_path,
             list_live_sessions,
             list_terminals,
             write_export_file,

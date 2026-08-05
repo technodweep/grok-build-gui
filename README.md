@@ -16,6 +16,9 @@ The CLI agent remains the brain (auth, tools, MCP, sessions). This app is the vi
 - Reconnect after agent crash (resume or new session; scrollback kept)
 - Colored diffs, drag-and-drop file attach, `/rename` / `/delete`
 - Prompt history (↑/↓), export to file, disconnect notifications
+- Virtualized scrollback, stream batching, live turn usage
+- ACP session/list merged into session browser; auth verify on welcome
+- Settings: Grok config overview (MCP, skills, open `~/.grok/config.toml`)
 - Themes (dark / dim / light), settings, shortcuts cheatsheet
 
 See [docs/architecture.md](docs/architecture.md) and [docs/acp-surface.md](docs/acp-surface.md) for the full surface map.

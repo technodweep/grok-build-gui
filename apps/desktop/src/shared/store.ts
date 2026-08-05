@@ -14,6 +14,8 @@ import type {
   SlashCommand,
   SubagentInfo,
   TerminalSnapshot,
+  ToolContentBlock,
+  TurnUsage,
 } from "./types";
 
 interface AppState {
@@ -45,6 +47,8 @@ interface AppState {
   models: SessionModelsState | null;
   /** Last totalTokens seen on a stream update (best-effort). */
   lastTokens: number | null;
+  /** Latest turn usage snapshot from `turn_completed`. */
+  lastUsage: TurnUsage | null;
   settingsOpen: boolean;
   shortcutsOpen: boolean;
   contextOpen: boolean;
@@ -83,9 +87,11 @@ interface AppState {
       input?: string;
       output?: string;
       locations?: string[];
+      contentBlocks?: ToolContentBlock[];
     },
     sessionId?: string,
   ) => void;
+  setLastUsage: (u: TurnUsage | null) => void;
   setPlan: (entries: PlanEntry[], sessionId?: string) => void;
   loadScrollForSession: (sessionId: string) => void;
   enqueuePermission: (req: PermissionRequest) => void;
@@ -237,6 +243,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   effort: null,
   models: null,
   lastTokens: null,
+  lastUsage: null,
   settingsOpen: false,
   shortcutsOpen: false,
   contextOpen: false,
@@ -330,6 +337,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             input: tool.input ?? prev.input,
             output: tool.output ?? prev.output,
             locations: tool.locations ?? prev.locations,
+            contentBlocks: tool.contentBlocks ?? prev.contentBlocks,
           };
         }
         return updated;
@@ -346,6 +354,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           input: tool.input,
           output: tool.output,
           locations: tool.locations,
+          contentBlocks: tool.contentBlocks,
         },
       ];
     }),
@@ -436,6 +445,19 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
   setLastTokens: (lastTokens) => set({ lastTokens }),
+  setLastUsage: (lastUsage) => {
+    if (!lastUsage) {
+      set({ lastUsage: null });
+      return;
+    }
+    set({
+      lastUsage,
+      lastTokens:
+        typeof lastUsage.totalTokens === "number"
+          ? lastUsage.totalTokens
+          : get().lastTokens,
+    });
+  },
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
   setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
   setContextOpen: (contextOpen) => set({ contextOpen }),

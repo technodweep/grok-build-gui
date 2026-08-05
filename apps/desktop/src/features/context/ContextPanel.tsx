@@ -53,6 +53,7 @@ export function ContextPanel() {
   const setSignals = useAppStore((s) => s.setSignals);
   const modelId = useAppStore((s) => s.modelId);
   const lastTokens = useAppStore((s) => s.lastTokens);
+  const lastUsage = useAppStore((s) => s.lastUsage);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -187,6 +188,30 @@ export function ContextPanel() {
           </div>
           <Row label="Session" value={session?.sessionId?.slice(0, 13) + "…" || "—"} />
           <Row label="Model" value={s?.primaryModelId || modelId || "—"} />
+          {lastUsage ? (
+            <>
+              <Row
+                label="Last turn in/out"
+                value={`${lastUsage.inputTokens?.toLocaleString() ?? "—"} / ${lastUsage.outputTokens?.toLocaleString() ?? "—"}`}
+              />
+              <Row
+                label="Last turn total"
+                value={
+                  lastUsage.totalTokens != null
+                    ? lastUsage.totalTokens.toLocaleString()
+                    : lastTokens != null
+                      ? lastTokens.toLocaleString()
+                      : "—"
+                }
+              />
+              {lastUsage.apiDurationMs != null ? (
+                <Row
+                  label="Last turn API"
+                  value={`${(lastUsage.apiDurationMs / 1000).toFixed(2)}s`}
+                />
+              ) : null}
+            </>
+          ) : null}
           <Row label="Turns" value={s ? String(s.turnCount) : "—"} />
           <Row
             label="Messages"

@@ -6,6 +6,38 @@ export interface EnvironmentInfo {
   binaryVersion: string | null;
   found: boolean;
   authPresent: boolean;
+  authEmail?: string | null;
+  authMode?: string | null;
+}
+
+/** ACP `session/list` entry (may lack disk path). */
+export interface AgentSessionInfo {
+  sessionId: string;
+  cwd: string;
+  title?: string | null;
+  updatedAt?: string | null;
+  fromAgent?: boolean;
+}
+
+/** Live usage from `turn_completed` session updates. */
+export interface TurnUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  cachedReadTokens?: number;
+  reasoningTokens?: number;
+  modelCalls?: number;
+  apiDurationMs?: number;
+}
+
+export interface ToolContentBlock {
+  type?: string;
+  path?: string;
+  oldText?: string;
+  newText?: string;
+  text?: string;
+  content?: string;
+  [key: string]: unknown;
 }
 
 export interface SessionState {
@@ -80,6 +112,36 @@ export interface GuiSettings {
   fontSize?: number;
 }
 
+export interface McpServerInfo {
+  name: string;
+  command?: string | null;
+  url?: string | null;
+  enabled: boolean;
+  transport: string;
+}
+
+export interface SkillInfo {
+  name: string;
+  path: string;
+  source: string;
+  description?: string | null;
+  disabled: boolean;
+}
+
+export interface GrokConfigOverview {
+  configPath: string;
+  configExists: boolean;
+  defaultModel?: string | null;
+  permissionMode?: string | null;
+  autoCompactPercent?: number | null;
+  mcpServers: McpServerInfo[];
+  skills: SkillInfo[];
+  skillPaths: string[];
+  skillDisabled: string[];
+  marketplaceSources: string[];
+  parseError?: string | null;
+}
+
 export interface SubagentInfo {
   id: string;
   parentSessionId: string;
@@ -139,6 +201,8 @@ export type ScrollItem =
       input?: string;
       output?: string;
       locations?: string[];
+      /** Structured ACP tool content (diffs, text blocks). */
+      contentBlocks?: ToolContentBlock[];
     }
   | {
       id: string;
@@ -206,7 +270,10 @@ export interface SessionUpdateParams {
   sessionId?: string;
   update?: {
     sessionUpdate?: string;
-    content?: { type?: string; text?: string } | string;
+    content?:
+      | { type?: string; text?: string }
+      | string
+      | ToolContentBlock[];
     title?: string;
     status?: string;
     toolCallId?: string;
@@ -220,6 +287,9 @@ export interface SessionUpdateParams {
       description?: string;
       input?: { hint?: string };
     }>;
+    usage?: TurnUsage;
+    stopReason?: string;
+    stop_reason?: string;
     [key: string]: unknown;
   };
 }

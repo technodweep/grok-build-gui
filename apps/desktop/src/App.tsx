@@ -20,8 +20,10 @@ import {
   listLiveSessions,
 } from "./shared/api";
 import { appProbablyBackground, notify } from "./shared/notify";
+import { scheduleStreamFlush } from "./shared/streamBatch";
 import { formatJson, useAppStore } from "./shared/store";
 import { applyTheme } from "./shared/theme";
+import { toolOutputFromUpdate } from "./shared/toolContent";
 import type {
   AgentStatus,
   LiveSession,
@@ -31,6 +33,7 @@ import type {
   SessionUpdateParams,
   SubagentInfo,
   TerminalSnapshot,
+  TurnUsage,
 } from "./shared/types";
 
 function looksLikeSubagentTool(update: NonNullable<SessionUpdateParams["update"]>): boolean {
@@ -50,7 +53,17 @@ function contentText(content: SessionUpdateParams["update"]): string {
   if (!content) return "";
   const c = content.content;
   if (typeof c === "string") return c;
-  if (c && typeof c === "object" && "text" in c) return c.text ?? "";
+  if (Array.isArray(c)) {
+    return c
+      .map((b) =>
+        typeof b === "object" && b
+          ? String((b as { text?: string }).text ?? (b as { content?: string }).content ?? "")
+          : "",
+      )
+      .filter(Boolean)
+      .join("");
+  }
+  if (c && typeof c === "object" && "text" in c) return (c as { text?: string }).text ?? "";
   return "";
 }
 
@@ -105,6 +118,7 @@ export default function App() {
   const setModelId = useAppStore((s) => s.setModelId);
   const setModels = useAppStore((s) => s.setModels);
   const setLastTokens = useAppStore((s) => s.setLastTokens);
+  const setLastUsage = useAppStore((s) => s.setLastUsage);
   const setSettingsOpen = useAppStore((s) => s.setSettingsOpen);
   const setShortcutsOpen = useAppStore((s) => s.setShortcutsOpen);
   const setAlwaysApprove = useAppStore((s) => s.setAlwaysApprove);
@@ -133,6 +147,8 @@ export default function App() {
           binaryVersion: null,
           found: false,
           authPresent: false,
+          authEmail: null,
+          authMode: null,
         });
       }
     })();
@@ -230,93 +246,111 @@ export default function App() {
 
     track(
       listen<SessionUpdateParams>("session://update", (ev) => {
-        const sid = ev.payload?.sessionId;
-        const update = ev.payload?.update;
-        if (!update) return;
-        const kind = update.sessionUpdate;
+        // Coalesce high-frequency chunks onto rAF so React paints once per frame.
+        scheduleStreamFlush(() => {
+          const sid = ev.payload?.sessionId;
+          const update = ev.payload?.update;
+          if (!update) return;
+          const kind = update.sessionUpdate;
 
-        const t = (update as { _meta?: { totalTokens?: number } })._meta
-          ?.totalTokens;
-        if (typeof t === "number") setLastTokens(t);
+          const t = (update as { _meta?: { totalTokens?: number } })._meta
+            ?.totalTokens;
+          if (typeof t === "number") setLastTokens(t);
 
-        const suppress = useAppStore.getState().suppressHistoryUpdates;
-        // During resume grace, skip message-like history chunks (disk hydrate owns them).
-        if (
-          suppress &&
-          (kind === "agent_message_chunk" ||
-            kind === "agent_thought_chunk" ||
-            kind === "user_message_chunk")
-        ) {
-          return;
-        }
-
-        if (kind === "agent_message_chunk") {
-          const text = contentText(update);
-          if (text) appendAgentText(text, sid);
-        } else if (kind === "agent_thought_chunk") {
-          const text = contentText(update);
-          if (text) appendThoughtText(text, sid);
-        } else if (kind === "tool_call" || kind === "tool_call_update") {
-          const toolCallId = String(update.toolCallId ?? "unknown");
-          upsertTool(
-            {
-              toolCallId,
-              title: (update.title as string) || "tool",
-              status: (update.status as string) || "pending",
-              toolKind: update.kind as string | undefined,
-              input: formatJson(update.rawInput),
-              output:
-                formatJson(update.rawOutput) ??
-                (contentText(update) || undefined),
-              locations: locationsOf(update),
-            },
-            sid,
-          );
-
-          if (looksLikeSubagentTool(update)) {
-            const parent =
-              sid || useAppStore.getState().session?.sessionId || "unknown";
-            const info: SubagentInfo = {
-              id: toolCallId,
-              parentSessionId: parent,
-              name: String(update.title ?? "subagent"),
-              agentType: update.kind ? String(update.kind) : "agent",
-              status: update.status ? String(update.status) : "running",
-              title: String(update.title ?? ""),
-              live: true,
-            };
-            // Only attach to active parent view if parent matches.
-            const active = useAppStore.getState().session?.sessionId;
-            if (!active || active === parent || !sid) {
-              upsertSubagent(info);
-            }
+          const suppress = useAppStore.getState().suppressHistoryUpdates;
+          if (
+            suppress &&
+            (kind === "agent_message_chunk" ||
+              kind === "agent_thought_chunk" ||
+              kind === "user_message_chunk")
+          ) {
+            return;
           }
-        } else if (kind === "plan") {
-          const entries = (update.entries as PlanEntry[]) ?? [];
-          if (Array.isArray(entries)) setPlan(entries, sid);
-        } else if (kind === "available_commands_update") {
-          const cmds =
-            (update.availableCommands as Array<{
-              name?: string;
-              description?: string;
-              input?: { hint?: string };
-            }>) ?? [];
-          setSlashCommands(
-            cmds
-              .filter((c) => c.name)
-              .map((c) => ({
-                name: String(c.name),
-                description: c.description,
-                inputHint: c.input?.hint,
-                source: "agent" as const,
-              })),
-          );
-        } else if (kind === "current_mode_update" || kind === "model_update") {
-          const mid =
-            (update as { modelId?: string }).modelId ||
-            (update as { currentModelId?: string }).currentModelId;
-          if (mid) setModelId(String(mid));
-        }
+
+          if (kind === "agent_message_chunk") {
+            const text = contentText(update);
+            if (text) appendAgentText(text, sid);
+          } else if (kind === "agent_thought_chunk") {
+            const text = contentText(update);
+            if (text) appendThoughtText(text, sid);
+          } else if (kind === "tool_call" || kind === "tool_call_update") {
+            const toolCallId = String(update.toolCallId ?? "unknown");
+            const fromBlocks = toolOutputFromUpdate(update);
+            upsertTool(
+              {
+                toolCallId,
+                title: (update.title as string) || "tool",
+                status: (update.status as string) || "pending",
+                toolKind: update.kind as string | undefined,
+                input: formatJson(update.rawInput),
+                output:
+                  fromBlocks.output ??
+                  formatJson(update.rawOutput) ??
+                  (contentText(update) || undefined),
+                locations: locationsOf(update),
+                contentBlocks: fromBlocks.contentBlocks,
+              },
+              sid,
+            );
+
+            if (looksLikeSubagentTool(update)) {
+              const parent =
+                sid || useAppStore.getState().session?.sessionId || "unknown";
+              const info: SubagentInfo = {
+                id: toolCallId,
+                parentSessionId: parent,
+                name: String(update.title ?? "subagent"),
+                agentType: update.kind ? String(update.kind) : "agent",
+                status: update.status ? String(update.status) : "running",
+                title: String(update.title ?? ""),
+                live: true,
+              };
+              const active = useAppStore.getState().session?.sessionId;
+              if (!active || active === parent || !sid) {
+                upsertSubagent(info);
+              }
+            }
+          } else if (kind === "plan") {
+            const entries = (update.entries as PlanEntry[]) ?? [];
+            if (Array.isArray(entries)) setPlan(entries, sid);
+          } else if (kind === "turn_completed") {
+            setBusy(false);
+            const usage = update.usage as TurnUsage | undefined;
+            if (usage && typeof usage === "object") {
+              setLastUsage({
+                inputTokens: usage.inputTokens,
+                outputTokens: usage.outputTokens,
+                totalTokens: usage.totalTokens,
+                cachedReadTokens: usage.cachedReadTokens,
+                reasoningTokens: usage.reasoningTokens,
+                modelCalls: usage.modelCalls,
+                apiDurationMs: usage.apiDurationMs,
+              });
+            }
+          } else if (kind === "available_commands_update") {
+            const cmds =
+              (update.availableCommands as Array<{
+                name?: string;
+                description?: string;
+                input?: { hint?: string };
+              }>) ?? [];
+            setSlashCommands(
+              cmds
+                .filter((c) => c.name)
+                .map((c) => ({
+                  name: String(c.name),
+                  description: c.description,
+                  inputHint: c.input?.hint,
+                  source: "agent" as const,
+                })),
+            );
+          } else if (kind === "current_mode_update" || kind === "model_update") {
+            const mid =
+              (update as { modelId?: string }).modelId ||
+              (update as { currentModelId?: string }).currentModelId;
+            if (mid) setModelId(String(mid));
+          }
+        });
       }),
     );
 
@@ -383,6 +417,7 @@ export default function App() {
     setSession,
     setView,
     setLastTokens,
+    setLastUsage,
     setModelId,
     setModels,
     upsertSubagent,

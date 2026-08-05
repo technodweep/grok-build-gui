@@ -1,8 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
+  AgentSessionInfo,
   AgentStatus,
   DiskSession,
   EnvironmentInfo,
+  GrokConfigOverview,
   GuiSettings,
   HistoryItem,
   LiveSession,
@@ -85,6 +87,21 @@ export function listDiskSessions(cwd?: string | null) {
   });
 }
 
+export function listAgentSessions(cwd?: string | null, binaryOverride?: string | null) {
+  return invoke<AgentSessionInfo[]>("list_agent_sessions", {
+    args: {
+      cwd: cwd ?? null,
+      binaryOverride: binaryOverride ?? null,
+    },
+  });
+}
+
+export function authenticateAgent(binaryOverride?: string | null) {
+  return invoke<Record<string, unknown>>("authenticate_agent", {
+    binaryOverride: binaryOverride ?? null,
+  });
+}
+
 export function deleteDiskSession(sessionId: string) {
   return invoke<void>("delete_disk_session", {
     args: { sessionId },
@@ -121,6 +138,16 @@ export function getGuiSettings() {
 
 export function setGuiSettings(settings: GuiSettings) {
   return invoke<void>("set_gui_settings", { settings });
+}
+
+export function getGrokConfigOverview(projectCwd?: string | null) {
+  return invoke<GrokConfigOverview>("get_grok_config_overview", {
+    args: { projectCwd: projectCwd ?? null },
+  });
+}
+
+export function getGrokConfigPath() {
+  return invoke<string>("get_grok_config_path");
 }
 
 export function listLiveSessions() {

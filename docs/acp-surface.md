@@ -64,6 +64,12 @@ Track TUI parity via ACP. Update as features land.
 - [x] Prompt history recall (`↑`/`↓` on empty input, `/history`)
 - [x] Export conversation to file (`/export` save dialog; `/export clipboard`)
 - [x] Desktop notification when agent disconnects mid-session
+- [x] Stream update batching (rAF) + virtualized scrollback
+- [x] ACP `session/list` merged with disk session browser
+- [x] Live turn usage from `turn_completed` (+ context panel)
+- [x] Richer tool cards (ACP `content` diff blocks)
+- [x] Auth verify (`authenticate` cached_token) + email display on welcome
+- [x] Settings → Grok config overview (MCP servers, skills, marketplace, open config.toml)
 
 ## Packaging (PR8)
 
