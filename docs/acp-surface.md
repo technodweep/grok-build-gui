@@ -94,6 +94,9 @@ Update this checklist as features land.
 - [x] Phase D: Safe config.toml MCP & skills edits (`toml_edit`)
 - [x] Phase D: `grok plugin` install/uninstall/enable with trust prompts
 - [x] Phase D: Folder trust store UI (`trusted_folders.toml`)
+- [x] Phase E: Subagent panel open/stop + isolation badges
+- [x] Phase E: Agents & personas manager (`/agents`, `/personas`)
+- [x] Phase E: User agent/persona save-delete under `~/.grok`
 
 ## Packaging (PR8)
 

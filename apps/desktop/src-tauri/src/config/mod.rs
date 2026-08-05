@@ -3,9 +3,14 @@ use std::path::{Path, PathBuf};
 
 use crate::error::{AppError, AppResult};
 
+pub mod agents;
 pub mod extensions;
 pub mod grok_config;
 pub mod settings;
+pub use agents::{
+    delete_user_agent, delete_user_persona, load_agents_catalog, save_user_agent, save_user_persona,
+    AgentDef, AgentsCatalog, PersonaDef,
+};
 pub use extensions::{
     add_mcp_server, load_extensions_hub, plugin_install, plugin_set_enabled, plugin_uninstall,
     remove_mcp_server, set_hook_enabled, set_mcp_enabled, set_project_trust, set_skill_disabled,

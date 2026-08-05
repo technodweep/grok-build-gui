@@ -204,8 +204,46 @@ export interface SubagentInfo {
   status?: string | null;
   title?: string | null;
   childSessionId?: string | null;
+  /** Isolation mode: none | worktree | … */
+  isolation?: string | null;
+  worktreePath?: string | null;
+  persona?: string | null;
+  modelId?: string | null;
   /** true when observed from live tool stream rather than disk */
   live?: boolean;
+}
+
+export interface AgentDef {
+  name: string;
+  path: string;
+  source: string;
+  description?: string | null;
+  model?: string | null;
+  permissionMode?: string | null;
+  promptMode?: string | null;
+  body?: string | null;
+  readonly: boolean;
+}
+
+export interface PersonaDef {
+  name: string;
+  path: string;
+  source: string;
+  description?: string | null;
+  instructions?: string | null;
+  model?: string | null;
+  reasoningEffort?: string | null;
+  defaultIsolation?: string | null;
+  body?: string | null;
+  readonly: boolean;
+}
+
+export interface AgentsCatalog {
+  agents: AgentDef[];
+  personas: PersonaDef[];
+  userAgentsDir: string;
+  userPersonasDir: string;
+  notes: string[];
 }
 
 /** From session signals.json — context window + session stats. */

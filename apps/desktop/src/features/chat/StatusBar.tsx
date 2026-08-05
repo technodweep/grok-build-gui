@@ -68,6 +68,7 @@ export function StatusBar() {
   const setTerminalsOpen = useAppStore((s) => s.setTerminalsOpen);
   const setHistoryOpen = useAppStore((s) => s.setHistoryOpen);
   const setExtensionsOpen = useAppStore((s) => s.setExtensionsOpen);
+  const setAgentsOpen = useAppStore((s) => s.setAgentsOpen);
   const rewindTurns = useAppStore((s) => s.rewindTurns);
   const setBusy = useAppStore((s) => s.setBusy);
   const sessionMode = useAppStore((s) => s.sessionMode);
@@ -466,6 +467,14 @@ export function StatusBar() {
           title="Extensions hub — MCP, skills, plugins, hooks (/plugins)"
         >
           Extensions
+        </button>
+        <button
+          type="button"
+          style={btn}
+          onClick={() => setAgentsOpen(true)}
+          title="Agents & personas (/agents, /personas)"
+        >
+          Agents
         </button>
         <button type="button" style={btn} onClick={() => setSettingsOpen(true)} title="Settings (Ctrl+,)">
           Settings

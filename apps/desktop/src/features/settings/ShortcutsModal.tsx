@@ -35,6 +35,8 @@ const ROWS: { keys: string; action: string }[] = [
   { keys: "/settings", action: "Open settings" },
   { keys: "/plugins · /extensions", action: "Extensions hub (MCP, skills, plugins, hooks)" },
   { keys: "/mcp · /skills · /hooks · /marketplace", action: "Open extensions on that tab" },
+  { keys: "/agents · /config-agents", action: "Agents & personas manager" },
+  { keys: "/personas · /subagents", action: "Personas tab · live subagents tab" },
   { keys: "/shortcuts", action: "Open this cheatsheet" },
   { keys: "/context", action: "Context window usage panel" },
   { keys: "/usage", action: "Usage panel + agent /usage" },

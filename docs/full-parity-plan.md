@@ -159,11 +159,11 @@
 
 | Feature | Status | Notes / approach |
 |---------|--------|------------------|
-| Live subagent strip | **Partial** | |
-| Subagent detail / attach | **Gap** | Open child session view |
-| Config agents modal | **Gap** | `/config-agents` → file + UI |
-| Personas modal | **Gap** | |
-| Spawn UI (type, isolation) | **Gap** | Optional; agent can spawn |
+| Live subagent strip | **Done** | Open/stop, isolation badges, poll |
+| Subagent detail / attach | **Done** | Switch to child when on roster |
+| Config agents modal | **Done** | `/agents` CRUD for user agents |
+| Personas modal | **Done** | `/personas` list + edit user personas |
+| Spawn UI (type, isolation) | **Partial** | Agent spawns; GUI shows isolation |
 
 ### 4.8 Memory
 
@@ -333,6 +333,14 @@ Build in vertical slices that stay shippable. Each phase ends with: checklist up
 | E3 | **Agents manager** | CRUD for `~/.grok/agents` / project agents |
 | E4 | **Personas manager** | List bundled + custom; assign to subagents |
 | E5 | **Isolation/worktree status** | Show when agent uses worktree isolation |
+
+**Phase E status (2026-08-05):** Implemented.
+- Subagents strip: open child (switch session), stop child, isolation/persona badges, poll disk meta
+- Live tool stream merges isolation/worktree/childSessionId when present
+- Agents modal: Agents · Personas · Live tabs (`/agents`, `/personas`, `/subagents`)
+- Discover bundled + user + project agent `.md` and persona `.toml` (+ config.toml personas)
+- Save/delete user agents (`~/.grok/agents`) and personas (`~/.grok/personas`); fork readonly copies
+- Isolation shown as worktree badge + path when available
 
 **Exit criteria:** Multi-agent work is visible and controllable from the GUI.
 

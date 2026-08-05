@@ -20,6 +20,7 @@ import { ModelPickerModal } from "./features/settings/ModelPickerModal";
 import { ShortcutsModal } from "./features/settings/ShortcutsModal";
 import { HistoryPanel } from "./features/composer/HistoryPanel";
 import { ExtensionsModal } from "./features/extensions/ExtensionsModal";
+import { AgentsModal } from "./features/agents/AgentsModal";
 import { Welcome } from "./features/sessions/Welcome";
 import {
   getEnvironment,
@@ -404,13 +405,37 @@ export default function App() {
             if (looksLikeSubagentTool(update)) {
               const parent =
                 sid || useAppStore.getState().session?.sessionId || "unknown";
+              const raw = update.rawInput as Record<string, unknown> | undefined;
+              const rawOut = update.rawOutput as Record<string, unknown> | undefined;
+              const agentType =
+                (raw?.subagent_type as string) ||
+                (raw?.subagentType as string) ||
+                (raw?.agent_type as string) ||
+                (update.kind ? String(update.kind) : "agent");
+              const isolation =
+                (raw?.isolation as string) ||
+                (rawOut?.isolation as string) ||
+                undefined;
+              const worktreePath =
+                (raw?.worktree as string) ||
+                (rawOut?.worktree as string) ||
+                (rawOut?.worktreePath as string) ||
+                undefined;
+              const childSessionId =
+                (rawOut?.sessionId as string) ||
+                (rawOut?.childSessionId as string) ||
+                (rawOut?.session_id as string) ||
+                undefined;
               const info: SubagentInfo = {
                 id: toolCallId,
                 parentSessionId: parent,
                 name: String(update.title ?? "subagent"),
-                agentType: update.kind ? String(update.kind) : "agent",
+                agentType,
                 status: update.status ? String(update.status) : "running",
                 title: String(update.title ?? ""),
+                isolation: isolation || (worktreePath ? "worktree" : undefined),
+                worktreePath,
+                childSessionId,
                 live: true,
               };
               const active = useAppStore.getState().session?.sessionId;
@@ -640,6 +665,7 @@ export default function App() {
       <SettingsModal />
       <ModelPickerModal />
       <ExtensionsModal />
+      <AgentsModal />
       <HistoryPanel />
       <ShortcutsModal />
       <ContextPanel />

@@ -87,6 +87,8 @@ export function Composer() {
   const timelineOpen = useAppStore((s) => s.timelineOpen);
   const setExtensionsOpen = useAppStore((s) => s.setExtensionsOpen);
   const setExtensionsTab = useAppStore((s) => s.setExtensionsTab);
+  const setAgentsOpen = useAppStore((s) => s.setAgentsOpen);
+  const setAgentsTab = useAppStore((s) => s.setAgentsTab);
 
   const [sending, setSending] = useState(false);
   const [palette, setPalette] = useState<PaletteMode>(null);
@@ -281,6 +283,22 @@ export function Composer() {
       }
       case "settings": {
         setSettingsOpen(true);
+        break;
+      }
+      case "agents":
+      case "config-agents": {
+        setAgentsTab("agents");
+        setAgentsOpen(true);
+        break;
+      }
+      case "personas": {
+        setAgentsTab("personas");
+        setAgentsOpen(true);
+        break;
+      }
+      case "subagents": {
+        setAgentsTab("live");
+        setAgentsOpen(true);
         break;
       }
       case "plugins":

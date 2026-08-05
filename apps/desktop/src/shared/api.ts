@@ -132,6 +132,36 @@ export function listSessionSubagents(sessionId: string) {
   });
 }
 
+export function getAgentsCatalog(projectCwd?: string | null, includeBodies = false) {
+  return invoke<import("./types").AgentsCatalog>("get_agents_catalog", {
+    args: { projectCwd: projectCwd ?? null, includeBodies },
+  });
+}
+
+export function saveAgentDef(name: string, body: string) {
+  return invoke<import("./types").AgentDef>("save_agent_def", {
+    args: { name, body },
+  });
+}
+
+export function deleteAgentDef(name: string) {
+  return invoke<void>("delete_agent_def", {
+    args: { name },
+  });
+}
+
+export function savePersonaDef(name: string, body: string) {
+  return invoke<import("./types").PersonaDef>("save_persona_def", {
+    args: { name, body },
+  });
+}
+
+export function deletePersonaDef(name: string) {
+  return invoke<void>("delete_persona_def", {
+    args: { name },
+  });
+}
+
 export function getGuiSettings() {
   return invoke<GuiSettings>("get_gui_settings");
 }

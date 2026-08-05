@@ -451,6 +451,20 @@ pub struct SubagentInfo {
     pub status: Option<String>,
     pub title: Option<String>,
     pub child_session_id: Option<String>,
+    /// Isolation mode: `none` | `worktree` | …
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub isolation: Option<String>,
+    /// Worktree path when isolation is worktree.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub worktree_path: Option<String>,
+    /// Persona applied to this subagent, if any.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub persona: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_id: Option<String>,
+    /// true when observed from live tool stream rather than disk only.
+    #[serde(default)]
+    pub live: bool,
 }
 
 /// List subagents recorded under `session/subagents/` for a parent session.
@@ -504,6 +518,31 @@ pub fn list_subagents(parent_session_id: &str) -> AppResult<Vec<SubagentInfo>> {
             })
             .unwrap_or_else(|| "unknown".into());
 
+        let isolation = v
+            .get("isolation")
+            .or_else(|| v.get("isolationMode"))
+            .or_else(|| v.get("isolation_mode"))
+            .and_then(|x| x.as_str())
+            .map(|s| s.to_string());
+        let worktree_path = v
+            .get("worktreePath")
+            .or_else(|| v.get("worktree_path"))
+            .or_else(|| v.get("worktree"))
+            .and_then(|x| {
+                if let Some(s) = x.as_str() {
+                    Some(s.to_string())
+                } else {
+                    x.get("path").and_then(|p| p.as_str()).map(|s| s.to_string())
+                }
+            });
+        let isolation = isolation.or_else(|| {
+            if worktree_path.is_some() {
+                Some("worktree".into())
+            } else {
+                None
+            }
+        });
+
         out.push(SubagentInfo {
             id,
             parent_session_id: parent_session_id.to_string(),
@@ -533,8 +572,23 @@ pub fn list_subagents(parent_session_id: &str) -> AppResult<Vec<SubagentInfo>> {
                 .get("sessionId")
                 .or_else(|| v.get("childSessionId"))
                 .or_else(|| v.get("session_id"))
+                .or_else(|| v.get("child_session_id"))
                 .and_then(|x| x.as_str())
                 .map(|s| s.to_string()),
+            isolation,
+            worktree_path,
+            persona: v
+                .get("persona")
+                .or_else(|| v.get("personaName"))
+                .and_then(|x| x.as_str())
+                .map(|s| s.to_string()),
+            model_id: v
+                .get("modelId")
+                .or_else(|| v.get("model"))
+                .or_else(|| v.get("model_id"))
+                .and_then(|x| x.as_str())
+                .map(|s| s.to_string()),
+            live: false,
         });
     }
 

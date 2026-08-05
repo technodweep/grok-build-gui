@@ -59,6 +59,8 @@ interface AppState {
   extensionsOpen: boolean;
   /** Preferred tab when opening extensions hub. */
   extensionsTab: "mcp" | "skills" | "plugins" | "marketplace" | "hooks" | "trust";
+  agentsOpen: boolean;
+  agentsTab: "agents" | "personas" | "live";
   signals: SessionSignals | null;
   /** Subagents for the active (or last loaded) parent session. */
   subagents: SubagentInfo[];
@@ -154,6 +156,8 @@ interface AppState {
   setExtensionsTab: (
     t: "mcp" | "skills" | "plugins" | "marketplace" | "hooks" | "trust",
   ) => void;
+  setAgentsOpen: (v: boolean) => void;
+  setAgentsTab: (t: "agents" | "personas" | "live") => void;
   setSignals: (s: SessionSignals | null) => void;
   setSubagents: (list: SubagentInfo[]) => void;
   upsertSubagent: (info: SubagentInfo) => void;
@@ -266,6 +270,26 @@ const CLIENT_COMMANDS: SlashCommand[] = [
     name: "copy",
     description: "Copy Nth agent reply (default 1 = latest) or write to path",
     inputHint: "n | path",
+    source: "client",
+  },
+  {
+    name: "agents",
+    description: "Agents & personas manager (alias: /config-agents)",
+    source: "client",
+  },
+  {
+    name: "config-agents",
+    description: "Alias for /agents",
+    source: "client",
+  },
+  {
+    name: "personas",
+    description: "Open personas tab in agents manager",
+    source: "client",
+  },
+  {
+    name: "subagents",
+    description: "Live subagents for this session",
     source: "client",
   },
   {
@@ -419,6 +443,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   modelsOpen: false,
   extensionsOpen: false,
   extensionsTab: "mcp",
+  agentsOpen: false,
+  agentsTab: "agents",
   signals: null,
   subagents: [],
   suppressHistoryUpdates: false,
@@ -681,6 +707,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   setModelsOpen: (modelsOpen) => set({ modelsOpen }),
   setExtensionsOpen: (extensionsOpen) => set({ extensionsOpen }),
   setExtensionsTab: (extensionsTab) => set({ extensionsTab }),
+  setAgentsOpen: (agentsOpen) => set({ agentsOpen }),
+  setAgentsTab: (agentsTab) => set({ agentsTab }),
   setSignals: (signals) => set({ signals }),
   setSubagents: (subagents) => set({ subagents }),
   upsertSubagent: (info) => {

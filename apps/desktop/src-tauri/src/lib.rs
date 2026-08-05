@@ -14,11 +14,12 @@ use acp::{
     TerminalSnapshot,
 };
 use config::{
-    add_mcp_server, environment_info, load_extensions_hub, load_grok_config_overview,
-    load_settings, plugin_install, plugin_set_enabled, plugin_uninstall, remove_mcp_server,
-    save_settings, set_hook_enabled, set_mcp_enabled, set_project_trust, set_skill_disabled,
-    AddMcpArgs, EnvironmentInfo, ExtensionsHub, GrokConfigOverview, GuiSettings, HookInfo,
-    McpServerInfo, TrustedFolder,
+    add_mcp_server, delete_user_agent, delete_user_persona, environment_info, load_agents_catalog,
+    load_extensions_hub, load_grok_config_overview, load_settings, plugin_install,
+    plugin_set_enabled, plugin_uninstall, remove_mcp_server, save_settings, save_user_agent,
+    save_user_persona, set_hook_enabled, set_mcp_enabled, set_project_trust, set_skill_disabled,
+    AddMcpArgs, AgentDef, AgentsCatalog, EnvironmentInfo, ExtensionsHub, GrokConfigOverview,
+    GuiSettings, HookInfo, McpServerInfo, PersonaDef, TrustedFolder,
 };
 use error::AppResult;
 use fs_index::FileEntry;
@@ -454,6 +455,54 @@ fn plugin_set_enabled_cmd(args: NamedEnabledArgs) -> AppResult<String> {
     plugin_set_enabled(&args.name, args.enabled)
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AgentsCatalogArgs {
+    #[serde(default)]
+    project_cwd: Option<String>,
+    #[serde(default)]
+    include_bodies: bool,
+}
+
+#[tauri::command]
+fn get_agents_catalog(args: AgentsCatalogArgs) -> AgentsCatalog {
+    load_agents_catalog(args.project_cwd.as_deref(), args.include_bodies)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SaveAgentArgs {
+    name: String,
+    body: String,
+}
+
+#[tauri::command]
+fn save_agent_def(args: SaveAgentArgs) -> AppResult<AgentDef> {
+    save_user_agent(&args.name, &args.body)
+}
+
+#[tauri::command]
+fn delete_agent_def(args: NameArgs) -> AppResult<()> {
+    delete_user_agent(&args.name)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SavePersonaArgs {
+    name: String,
+    body: String,
+}
+
+#[tauri::command]
+fn save_persona_def(args: SavePersonaArgs) -> AppResult<PersonaDef> {
+    save_user_persona(&args.name, &args.body)
+}
+
+#[tauri::command]
+fn delete_persona_def(args: NameArgs) -> AppResult<()> {
+    delete_user_persona(&args.name)
+}
+
 #[tauri::command]
 fn list_live_sessions(handle: tauri::State<'_, Arc<AcpHandle>>) -> Vec<LiveSession> {
     handle.list_live_sessions()
@@ -672,6 +721,11 @@ pub fn run() {
             plugin_install_cmd,
             plugin_uninstall_cmd,
             plugin_set_enabled_cmd,
+            get_agents_catalog,
+            save_agent_def,
+            delete_agent_def,
+            save_persona_def,
+            delete_persona_def,
             list_live_sessions,
             list_terminals,
             write_export_file,
