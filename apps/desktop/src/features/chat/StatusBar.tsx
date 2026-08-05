@@ -63,12 +63,14 @@ export function StatusBar() {
   const setContextOpen = useAppStore((s) => s.setContextOpen);
   const setModelsOpen = useAppStore((s) => s.setModelsOpen);
   const setSignals = useAppStore((s) => s.setSignals);
-  const terminals = useAppStore((s) => s.terminals);
   const terminalsOpen = useAppStore((s) => s.terminalsOpen);
   const setTerminalsOpen = useAppStore((s) => s.setTerminalsOpen);
   const setHistoryOpen = useAppStore((s) => s.setHistoryOpen);
   const setExtensionsOpen = useAppStore((s) => s.setExtensionsOpen);
   const setAgentsOpen = useAppStore((s) => s.setAgentsOpen);
+  const setAutomationOpen = useAppStore((s) => s.setAutomationOpen);
+  const terminals = useAppStore((s) => s.terminals);
+  const automationJobs = useAppStore((s) => s.automationJobs);
   const rewindTurns = useAppStore((s) => s.rewindTurns);
   const setBusy = useAppStore((s) => s.setBusy);
   const sessionMode = useAppStore((s) => s.sessionMode);
@@ -441,6 +443,36 @@ export function StatusBar() {
           </span>
         ) : null}
         {env?.binaryVersion ? <span title="CLI version">{env.binaryVersion}</span> : null}
+        {session || terminals.length > 0 || automationJobs.length > 0 ? (
+          <button
+            type="button"
+            style={{
+              ...btn,
+              borderColor:
+                terminals.some((t) => t.running) ||
+                automationJobs.some((j) => j.status === "active")
+                  ? "var(--gb-warning)"
+                  : "var(--gb-border)",
+              color:
+                terminals.some((t) => t.running) ||
+                automationJobs.some((j) => j.status === "active")
+                  ? "var(--gb-warning)"
+                  : "var(--gb-ink)",
+            }}
+            onClick={() => setAutomationOpen(true)}
+            title="Automation hub — tasks, loops, goals, workflows (/tasks)"
+          >
+            Tasks
+            {terminals.filter((t) => t.running).length +
+              automationJobs.filter((j) => j.status === "active").length >
+            0
+              ? ` (${
+                  terminals.filter((t) => t.running).length +
+                  automationJobs.filter((j) => j.status === "active").length
+                })`
+              : ""}
+          </button>
+        ) : null}
         {session || terminals.length > 0 ? (
           <button
             type="button"

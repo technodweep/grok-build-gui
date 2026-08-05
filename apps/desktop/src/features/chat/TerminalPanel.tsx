@@ -6,7 +6,7 @@ import {
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
 } from "react";
-import { listTerminals } from "../../shared/api";
+import { killTerminal, listTerminals, releaseTerminal } from "../../shared/api";
 import { useAppStore } from "../../shared/store";
 import type { TerminalSnapshot } from "../../shared/types";
 
@@ -36,7 +36,11 @@ export function TerminalPanel() {
   const setTerminals = useAppStore((s) => s.setTerminals);
   const selectedId = useAppStore((s) => s.selectedTerminalId);
   const setSelected = useAppStore((s) => s.setSelectedTerminalId);
+  const setError = useAppStore((s) => s.setError);
+  const setAutomationOpen = useAppStore((s) => s.setAutomationOpen);
+  const setAutomationTab = useAppStore((s) => s.setAutomationTab);
   const [height, setHeight] = useState(220);
+  const [actionBusy, setActionBusy] = useState(false);
   const preRef = useRef<HTMLPreElement>(null);
   const dragRef = useRef<{ startY: number; startH: number } | null>(null);
 
@@ -144,14 +148,27 @@ export function TerminalPanel() {
             </span>
           ) : null}
         </div>
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          style={btn}
-          title="Hide terminal panel (/terminal)"
-        >
-          Hide
-        </button>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          <button
+            type="button"
+            style={btn}
+            title="Automation hub — tasks, loops, goals"
+            onClick={() => {
+              setAutomationTab("tasks");
+              setAutomationOpen(true);
+            }}
+          >
+            Tasks
+          </button>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            style={btn}
+            title="Hide terminal panel (/terminal)"
+          >
+            Hide
+          </button>
+        </div>
       </div>
 
       {terminals.length === 0 ? (
@@ -235,13 +252,15 @@ export function TerminalPanel() {
                 <div
                   style={{
                     display: "flex",
-                    gap: 10,
+                    gap: 8,
                     padding: "4px 10px",
                     fontSize: 11,
                     color: "var(--gb-ink-muted)",
                     borderBottom: "1px solid var(--gb-border)",
                     flexShrink: 0,
                     fontFamily: "ui-monospace, Menlo, monospace",
+                    alignItems: "center",
+                    flexWrap: "wrap",
                   }}
                 >
                   <span style={{ color: statusLabel(active).color }}>
@@ -252,6 +271,47 @@ export function TerminalPanel() {
                     <span style={{ color: "var(--gb-warning)" }}>truncated</span>
                   ) : null}
                   <span style={{ marginLeft: "auto" }}>{active.terminalId}</span>
+                  <button
+                    type="button"
+                    style={btn}
+                    title="Copy output"
+                    onClick={() =>
+                      void navigator.clipboard
+                        .writeText(active.output || "")
+                        .catch((e) => setError(String(e)))
+                    }
+                  >
+                    Copy
+                  </button>
+                  <button
+                    type="button"
+                    style={{ ...btn, color: "var(--gb-danger)" }}
+                    disabled={!active.running || actionBusy}
+                    title="Kill process"
+                    onClick={() => {
+                      setActionBusy(true);
+                      void killTerminal(active.terminalId)
+                        .then(() => listTerminals().then(setTerminals))
+                        .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+                        .finally(() => setActionBusy(false));
+                    }}
+                  >
+                    Kill
+                  </button>
+                  <button
+                    type="button"
+                    style={btn}
+                    disabled={actionBusy}
+                    title="Release (remove from host)"
+                    onClick={() => {
+                      setActionBusy(true);
+                      void releaseTerminal(active.terminalId)
+                        .catch((e) => setError(e instanceof Error ? e.message : String(e)))
+                        .finally(() => setActionBusy(false));
+                    }}
+                  >
+                    Release
+                  </button>
                 </div>
                 <pre
                   ref={preRef}
@@ -271,6 +331,17 @@ export function TerminalPanel() {
                 >
                   {active.output || (active.running ? "…" : "(no output)")}
                 </pre>
+                <div
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: 10,
+                    color: "var(--gb-ink-muted)",
+                    borderTop: "1px solid var(--gb-border)",
+                  }}
+                >
+                  Interactive stdin is not exposed over ACP (agent owns the process). Use Kill /
+                  Release for control; ask the agent for input if the process is interactive.
+                </div>
               </>
             ) : null}
           </div>

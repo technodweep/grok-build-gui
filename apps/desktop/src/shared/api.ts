@@ -260,6 +260,18 @@ export function listTerminals() {
   return invoke<TerminalSnapshot[]>("list_terminals");
 }
 
+export function killTerminal(terminalId: string) {
+  return invoke<void>("kill_terminal", {
+    args: { terminalId },
+  });
+}
+
+export function releaseTerminal(terminalId: string) {
+  return invoke<void>("release_terminal", {
+    args: { terminalId },
+  });
+}
+
 export function getSessionModels() {
   return invoke<SessionModelsState>("get_session_models");
 }

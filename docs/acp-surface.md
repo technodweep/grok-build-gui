@@ -97,6 +97,9 @@ Update this checklist as features land.
 - [x] Phase E: Subagent panel open/stop + isolation badges
 - [x] Phase E: Agents & personas manager (`/agents`, `/personas`)
 - [x] Phase E: User agent/persona save-delete under `~/.grok`
+- [x] Phase F: Automation hub (tasks/loops/goals/workflows/research)
+- [x] Phase F: `kill_terminal` / `release_terminal` host commands
+- [x] Phase F: Terminal complete desktop notifications
 
 ## Packaging (PR8)
 

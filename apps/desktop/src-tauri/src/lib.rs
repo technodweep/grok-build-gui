@@ -513,6 +513,44 @@ fn list_terminals(handle: tauri::State<'_, Arc<AcpHandle>>) -> Vec<TerminalSnaps
     handle.terminals().list_snapshots()
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TerminalIdArgs {
+    terminal_id: String,
+}
+
+#[tauri::command]
+fn kill_terminal(
+    app: tauri::AppHandle,
+    handle: tauri::State<'_, Arc<AcpHandle>>,
+    args: TerminalIdArgs,
+) -> AppResult<()> {
+    handle
+        .terminals()
+        .kill(
+            &app,
+            &Some(json!({ "terminalId": args.terminal_id })),
+        )
+        .map_err(error::AppError::Message)?;
+    Ok(())
+}
+
+#[tauri::command]
+fn release_terminal(
+    app: tauri::AppHandle,
+    handle: tauri::State<'_, Arc<AcpHandle>>,
+    args: TerminalIdArgs,
+) -> AppResult<()> {
+    handle
+        .terminals()
+        .release(
+            &app,
+            &Some(json!({ "terminalId": args.terminal_id })),
+        )
+        .map_err(error::AppError::Message)?;
+    Ok(())
+}
+
 /// Write an export file chosen by the user (save dialog). Not sandboxed to project cwd.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -728,6 +766,8 @@ pub fn run() {
             delete_persona_def,
             list_live_sessions,
             list_terminals,
+            kill_terminal,
+            release_terminal,
             write_export_file,
             get_session_models,
             set_session_model,

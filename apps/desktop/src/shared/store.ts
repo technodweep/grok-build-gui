@@ -2,6 +2,8 @@ import { create } from "zustand";
 import type {
   AgentStatus,
   AppView,
+  AutomationJob,
+  AutomationKind,
   ElicitationRequest,
   EnvironmentInfo,
   LiveSession,
@@ -61,6 +63,10 @@ interface AppState {
   extensionsTab: "mcp" | "skills" | "plugins" | "marketplace" | "hooks" | "trust";
   agentsOpen: boolean;
   agentsTab: "agents" | "personas" | "live";
+  automationOpen: boolean;
+  automationTab: "tasks" | "loops" | "goals" | "workflows" | "research";
+  /** GUI-tracked automation jobs (loops/goals/workflows launched from UI). */
+  automationJobs: AutomationJob[];
   signals: SessionSignals | null;
   /** Subagents for the active (or last loaded) parent session. */
   subagents: SubagentInfo[];
@@ -158,6 +164,17 @@ interface AppState {
   ) => void;
   setAgentsOpen: (v: boolean) => void;
   setAgentsTab: (t: "agents" | "personas" | "live") => void;
+  setAutomationOpen: (v: boolean) => void;
+  setAutomationTab: (
+    t: "tasks" | "loops" | "goals" | "workflows" | "research",
+  ) => void;
+  upsertAutomationJob: (job: AutomationJob) => void;
+  updateAutomationJob: (
+    id: string,
+    patch: Partial<Pick<AutomationJob, "status" | "detail" | "note" | "lastCommand" | "title">>,
+  ) => void;
+  removeAutomationJob: (id: string) => void;
+  clearAutomationJobs: (kind?: AutomationKind) => void;
   setSignals: (s: SessionSignals | null) => void;
   setSubagents: (list: SubagentInfo[]) => void;
   upsertSubagent: (info: SubagentInfo) => void;
@@ -270,6 +287,40 @@ const CLIENT_COMMANDS: SlashCommand[] = [
     name: "copy",
     description: "Copy Nth agent reply (default 1 = latest) or write to path",
     inputHint: "n | path",
+    source: "client",
+  },
+  {
+    name: "tasks",
+    description: "Background tasks & automation hub",
+    source: "client",
+  },
+  {
+    name: "loop",
+    description: "Create recurring /loop job (interval + prompt)",
+    inputHint: "interval prompt",
+    source: "client",
+  },
+  {
+    name: "goal",
+    description: "Goal: set objective or status|pause|resume|clear",
+    inputHint: "objective | status | pause | resume | clear",
+    source: "client",
+  },
+  {
+    name: "workflow",
+    description: "Launch/control workflow (name + optional JSON args)",
+    inputHint: "name|pause|resume|stop …",
+    source: "client",
+  },
+  {
+    name: "workflows",
+    description: "Open workflows automation tab",
+    source: "client",
+  },
+  {
+    name: "deep-research",
+    description: "Start deep research workflow",
+    inputHint: "query",
     source: "client",
   },
   {
@@ -445,6 +496,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   extensionsTab: "mcp",
   agentsOpen: false,
   agentsTab: "agents",
+  automationOpen: false,
+  automationTab: "tasks",
+  automationJobs: [],
   signals: null,
   subagents: [],
   suppressHistoryUpdates: false,
@@ -628,8 +682,9 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setSlashCommands: (agentCmds) => {
     const byName = new Map<string, SlashCommand>();
-    for (const c of CLIENT_COMMANDS) byName.set(c.name, c);
+    // Agent first, then client — client wins on name collisions so GUI owns UX.
     for (const c of agentCmds) byName.set(c.name, c);
+    for (const c of CLIENT_COMMANDS) byName.set(c.name, c);
     set({
       slashCommands: Array.from(byName.values()).sort((a, b) =>
         a.name.localeCompare(b.name),
@@ -709,6 +764,36 @@ export const useAppStore = create<AppState>((set, get) => ({
   setExtensionsTab: (extensionsTab) => set({ extensionsTab }),
   setAgentsOpen: (agentsOpen) => set({ agentsOpen }),
   setAgentsTab: (agentsTab) => set({ agentsTab }),
+  setAutomationOpen: (automationOpen) => set({ automationOpen }),
+  setAutomationTab: (automationTab) => set({ automationTab }),
+  upsertAutomationJob: (job) => {
+    const list = get().automationJobs;
+    const idx = list.findIndex((j) => j.id === job.id);
+    if (idx >= 0) {
+      const next = [...list];
+      next[idx] = { ...next[idx], ...job, updatedAt: Date.now() };
+      set({ automationJobs: next });
+    } else {
+      set({ automationJobs: [job, ...list] });
+    }
+  },
+  updateAutomationJob: (id, patch) => {
+    const list = get().automationJobs;
+    const idx = list.findIndex((j) => j.id === id);
+    if (idx < 0) return;
+    const next = [...list];
+    next[idx] = { ...next[idx], ...patch, updatedAt: Date.now() };
+    set({ automationJobs: next });
+  },
+  removeAutomationJob: (id) =>
+    set({ automationJobs: get().automationJobs.filter((j) => j.id !== id) }),
+  clearAutomationJobs: (kind) => {
+    if (!kind) {
+      set({ automationJobs: [] });
+      return;
+    }
+    set({ automationJobs: get().automationJobs.filter((j) => j.kind !== kind) });
+  },
   setSignals: (signals) => set({ signals }),
   setSubagents: (subagents) => set({ subagents }),
   upsertSubagent: (info) => {

@@ -21,6 +21,7 @@ import { ShortcutsModal } from "./features/settings/ShortcutsModal";
 import { HistoryPanel } from "./features/composer/HistoryPanel";
 import { ExtensionsModal } from "./features/extensions/ExtensionsModal";
 import { AgentsModal } from "./features/agents/AgentsModal";
+import { AutomationModal } from "./features/automation/AutomationModal";
 import { Welcome } from "./features/sessions/Welcome";
 import {
   getEnvironment,
@@ -571,7 +572,33 @@ export default function App() {
 
     track(
       listen<TerminalSnapshot>("terminal://update", (ev) => {
-        if (ev.payload?.terminalId) upsertTerminal(ev.payload);
+        if (!ev.payload?.terminalId) return;
+        const prev = useAppStore
+          .getState()
+          .terminals.find((t) => t.terminalId === ev.payload.terminalId);
+        upsertTerminal(ev.payload);
+        // Notify when a running terminal finishes (F7).
+        if (prev?.running && !ev.payload.running) {
+          const code = ev.payload.exitCode;
+          const ok = code === 0 || code == null;
+          const title = ok
+            ? "Grok Build · Task completed"
+            : "Grok Build · Task failed";
+          const body = `${ev.payload.command.slice(0, 80)}${
+            code != null ? ` · exit ${code}` : ""
+          }`;
+          if (appProbablyBackground() || !ok) {
+            void notify(title, body);
+          }
+          useAppStore.getState().pushItem({
+            id: `sys-term-${ev.payload.terminalId}-${Date.now()}`,
+            kind: "system",
+            text: ok
+              ? `Terminal finished: ${ev.payload.command.slice(0, 100)}`
+              : `Terminal failed (exit ${code}): ${ev.payload.command.slice(0, 100)}`,
+            level: ok ? "info" : "error",
+          });
+        }
       }),
     );
 
@@ -666,6 +693,7 @@ export default function App() {
       <ModelPickerModal />
       <ExtensionsModal />
       <AgentsModal />
+      <AutomationModal />
       <HistoryPanel />
       <ShortcutsModal />
       <ContextPanel />

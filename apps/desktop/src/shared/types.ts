@@ -404,6 +404,34 @@ export interface TerminalSnapshot {
   running: boolean;
 }
 
+/** Local automation job tracked by the GUI (agent-backed via slash). */
+export type AutomationKind = "loop" | "goal" | "workflow" | "research" | "task";
+
+export type AutomationStatus =
+  | "active"
+  | "paused"
+  | "done"
+  | "failed"
+  | "cancelled"
+  | "unknown";
+
+export interface AutomationJob {
+  id: string;
+  kind: AutomationKind;
+  title: string;
+  status: AutomationStatus;
+  createdAt: number;
+  updatedAt: number;
+  /** Extra detail (interval, objective, workflow name, …). */
+  detail?: string;
+  /** Linked ACP terminal when kind is task. */
+  terminalId?: string;
+  /** Last agent-facing command we issued. */
+  lastCommand?: string;
+  /** Free-form note / result snippet. */
+  note?: string;
+}
+
 /** ACP session/update envelope (subset we render). */
 export interface SessionUpdateParams {
   sessionId?: string;

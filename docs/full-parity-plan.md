@@ -128,8 +128,8 @@
 | Session info panel | **Done** | Context panel |
 | Live turn usage | **Done** | `turn_completed.usage` |
 | Account `/usage` billing | **Partial** | Usage tab + agent `/usage` |
-| Background tasks panel | **Gap** | Monitor `run_terminal_command` background + tools |
-| Workflows dashboard | **Gap** | `/workflows` parity UI |
+| Background tasks panel | **Done** | Automation hub + terminal kill/release |
+| Workflows dashboard | **Done** | Launch/control + `/workflows` |
 | Doctor / health | **Gap** | `/doctor` as agent run + structured panel |
 
 ### 4.5 Terminals
@@ -139,7 +139,7 @@
 | ACP terminal host | **Done** | create/output/wait/kill/release |
 | Live terminal panel | **Partial** | Output yes; PTY input/interactive less |
 | Terminal in tool cards | **Gap** | Embed terminalId content |
-| Background command roster | **Gap** | |
+| Background command roster | **Done** | Automation Tasks tab + terminal panel |
 
 ### 4.6 Extensions: MCP, skills, plugins, hooks
 
@@ -185,8 +185,8 @@
 
 | Feature | Status | Notes / approach |
 |---------|--------|------------------|
-| `/loop` scheduler | **Gap** | Create/list/cancel jobs UI |
-| `/goal` autonomous goals | **Gap** | Status, pause, resume, clear |
+| `/loop` scheduler | **Done** | Automation Loops tab + client slash |
+| `/goal` autonomous goals | **Done** | Automation Goals tab + client slash |
 | `/workflow` launch/control | **Gap** | |
 | `/workflows` run dashboard | **Gap** | |
 | `/deep-research` | **Gap** | Launch + progress + report |
@@ -357,6 +357,13 @@ Build in vertical slices that stay shippable. Each phase ends with: checklist up
 | F5 | **Workflows dashboard** | List runs; pause/resume/stop; open result |
 | F6 | **Deep research** | Launch + progress + final report card |
 | F7 | **Notifications** | Desktop notify on task complete / goal complete |
+
+**Phase F status (2026-08-05):** Implemented.
+- Automation hub (`/tasks`, status bar **Tasks**): terminals kill/release + output tail
+- Terminal panel: Copy / Kill / Release; note on no ACP stdin
+- Loops / Goals / Workflows / Research tabs → agent slash + local job tracking
+- Client slash: `/loop`, `/goal`, `/workflow`, `/workflows`, `/deep-research`
+- Desktop notify + system banner when terminal transitions running → finished
 
 **Exit criteria:** Long-running agent work is as manageable as in the TUI.
 

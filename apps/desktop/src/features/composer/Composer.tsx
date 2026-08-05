@@ -89,6 +89,9 @@ export function Composer() {
   const setExtensionsTab = useAppStore((s) => s.setExtensionsTab);
   const setAgentsOpen = useAppStore((s) => s.setAgentsOpen);
   const setAgentsTab = useAppStore((s) => s.setAgentsTab);
+  const setAutomationOpen = useAppStore((s) => s.setAutomationOpen);
+  const setAutomationTab = useAppStore((s) => s.setAutomationTab);
+  const upsertAutomationJob = useAppStore((s) => s.upsertAutomationJob);
 
   const [sending, setSending] = useState(false);
   const [palette, setPalette] = useState<PaletteMode>(null);
@@ -283,6 +286,159 @@ export function Composer() {
       }
       case "settings": {
         setSettingsOpen(true);
+        break;
+      }
+      case "tasks": {
+        setAutomationTab("tasks");
+        setAutomationOpen(true);
+        break;
+      }
+      case "loop": {
+        if (!argTrim) {
+          setAutomationTab("loops");
+          setAutomationOpen(true);
+          break;
+        }
+        // /loop [interval] prompt  OR  /loop prompt (default 5m)
+        const parts = argTrim.split(/\s+/);
+        let interval = "5m";
+        let prompt = argTrim;
+        if (/^\d+[smhd]$/i.test(parts[0])) {
+          interval = parts[0];
+          prompt = parts.slice(1).join(" ").trim();
+        }
+        if (!prompt) {
+          setError("Usage: /loop [interval] <prompt>");
+          break;
+        }
+        if (!ready) {
+          setError("Connect a session first");
+          break;
+        }
+        {
+          const cmd = `/loop ${interval} ${prompt}`;
+          upsertAutomationJob({
+            id: `loop-${Date.now()}`,
+            kind: "loop",
+            title: prompt.slice(0, 80),
+            status: "active",
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            detail: `every ${interval}`,
+            lastCommand: cmd,
+          });
+          try {
+            await dispatchSend(cmd, []);
+          } catch (e) {
+            setError(e instanceof Error ? e.message : String(e));
+          }
+        }
+        break;
+      }
+      case "goal": {
+        if (!argTrim) {
+          setAutomationTab("goals");
+          setAutomationOpen(true);
+          break;
+        }
+        if (!ready) {
+          setError("Connect a session first");
+          break;
+        }
+        {
+          const cmd = `/goal ${argTrim}`;
+          const isAction = /^(status|pause|resume|clear)\b/i.test(argTrim);
+          if (!isAction) {
+            upsertAutomationJob({
+              id: `goal-${Date.now()}`,
+              kind: "goal",
+              title: argTrim.slice(0, 100),
+              status: "active",
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+              lastCommand: cmd,
+            });
+          }
+          try {
+            await dispatchSend(cmd, []);
+          } catch (e) {
+            setError(e instanceof Error ? e.message : String(e));
+          }
+        }
+        break;
+      }
+      case "workflow": {
+        if (!argTrim) {
+          setAutomationTab("workflows");
+          setAutomationOpen(true);
+          break;
+        }
+        if (!ready) {
+          setError("Connect a session first");
+          break;
+        }
+        {
+          const cmd = `/workflow ${argTrim}`;
+          const first = argTrim.split(/\s+/)[0];
+          if (!/^(pause|resume|stop|save)$/i.test(first)) {
+            upsertAutomationJob({
+              id: `wf-${Date.now()}`,
+              kind: "workflow",
+              title: first,
+              status: "active",
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+              lastCommand: cmd,
+            });
+          }
+          try {
+            await dispatchSend(cmd, []);
+          } catch (e) {
+            setError(e instanceof Error ? e.message : String(e));
+          }
+        }
+        break;
+      }
+      case "workflows": {
+        setAutomationTab("workflows");
+        setAutomationOpen(true);
+        if (ready) {
+          try {
+            await dispatchSend("/workflows", []);
+          } catch (e) {
+            setError(e instanceof Error ? e.message : String(e));
+          }
+        }
+        break;
+      }
+      case "deep-research": {
+        if (!argTrim) {
+          setAutomationTab("research");
+          setAutomationOpen(true);
+          break;
+        }
+        if (!ready) {
+          setError("Connect a session first");
+          break;
+        }
+        {
+          const cmd = `/deep-research ${argTrim}`;
+          upsertAutomationJob({
+            id: `research-${Date.now()}`,
+            kind: "research",
+            title: argTrim.slice(0, 100),
+            status: "active",
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            lastCommand: cmd,
+            note: "Report will appear in chat when ready",
+          });
+          try {
+            await dispatchSend(cmd, []);
+          } catch (e) {
+            setError(e instanceof Error ? e.message : String(e));
+          }
+        }
         break;
       }
       case "agents":
