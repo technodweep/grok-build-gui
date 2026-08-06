@@ -72,20 +72,20 @@
 | Auto permission mode | **Done** | `/auto` + status bar mode cycle |
 | Prompt queue | **Done** | |
 | Multiline composer | **Done** | |
-| Prompt history ↑/↓ | **Partial** | No fuzzy `/history` panel |
+| Prompt history ↑/↓ | **Done** | Fuzzy `/history` + persist + preview/copy/delete |
 | `@` file attach | **Done** | Fuzzy + small-file embed |
 | Drag-drop files | **Done** | |
 | Image / media chips in prompt | **Done** | Image picker + drag-drop; ACP image blocks when readable |
 | Export conversation | **Done** | File + clipboard |
 | Copy last reply | **Partial** | Last only; TUI supports Nth + path |
-| Find in scrollback | **Partial** | Basic find; no jump/timeline |
+| Find in scrollback | **Done** | Ctrl+F jump, snippet, highlight hit |
 | Virtualized scrollback | **Done** | |
 | Stream batching | **Done** | |
 | Markdown / code highlight | **Done** | GFM + fence highlighter |
 | Fold / expand blocks | **Done** | Tools/thoughts + fold/expand all |
 | Compact UI density | **Done** | `/compact-mode` + settings |
 | Timestamps on messages | **Done** | `/timestamps` + settings |
-| Raw markdown toggle | **Gap** | |
+| Raw markdown toggle | **Done** | Toolbar / `/raw` + settings |
 | Turn navigation (prev/next user turn) | **Done** | Alt+↑/↓ + timeline |
 
 ### 4.2 Sessions
@@ -127,7 +127,7 @@
 | Full `/context` categories | **Done** | Best-effort from scrollback scaled to used |
 | Session info panel | **Done** | Context panel |
 | Live turn usage | **Done** | `turn_completed.usage` |
-| Account `/usage` billing | **Partial** | Usage tab + agent `/usage` |
+| Account `/usage` billing | **Done** | Usage tab + session stats + agent `/usage` |
 | Background tasks panel | **Done** | Automation hub + terminal kill/release |
 | Workflows dashboard | **Done** | Launch/control + `/workflows` |
 | Doctor / health | **Done** | `grok doctor --json` panel + `/doctor` |
@@ -138,7 +138,7 @@
 |---------|--------|------------------|
 | ACP terminal host | **Done** | create/output/wait/kill/release |
 | Live terminal panel | **Partial** | Output yes; PTY input/interactive less |
-| Terminal in tool cards | **Gap** | Embed terminalId content |
+| Terminal in tool cards | **Done** | Live tail + open/kill/release |
 | Background command roster | **Done** | Automation Tasks tab + terminal panel |
 
 ### 4.6 Extensions: MCP, skills, plugins, hooks
@@ -148,7 +148,7 @@
 | Config overview (read-only) | **Done** | Settings → Grok config |
 | Open config.toml | **Done** | |
 | MCP list / enable-disable UI | **Done** | Extensions hub + TOML edit |
-| MCP detail / tools list | **Partial** | Transport/command; live tools later |
+| MCP detail / tools list | **Done** | Doctor probe + expandable tools list |
 | Skills browser | **Done** | Detail + disable + open path |
 | Plugins install/uninstall | **Done** | CLI + trust confirm |
 | Marketplace browser | **Done** | marketplace-cache catalog |

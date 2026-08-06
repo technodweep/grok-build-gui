@@ -12,12 +12,28 @@ function itemText(item: ScrollItem): string {
     return item.text;
   }
   if (item.kind === "tool") {
-    return [item.title, item.input, item.output].filter(Boolean).join("\n");
+    return [item.title, item.input, item.output, item.terminalId]
+      .filter(Boolean)
+      .join("\n");
   }
   if (item.kind === "plan") {
     return item.entries.map((e) => e.content).join("\n");
   }
   return "";
+}
+
+function snippetAround(text: string, query: string, radius = 48): string {
+  const q = query.trim().toLowerCase();
+  const lower = text.toLowerCase();
+  const at = lower.indexOf(q);
+  if (at < 0) return text.slice(0, 100);
+  const start = Math.max(0, at - radius);
+  const end = Math.min(text.length, at + q.length + radius);
+  return (
+    (start > 0 ? "…" : "") +
+    text.slice(start, end).replace(/\s+/g, " ") +
+    (end < text.length ? "…" : "")
+  );
 }
 
 export function FindBar() {
@@ -28,6 +44,7 @@ export function FindBar() {
   const index = useAppStore((s) => s.findIndex);
   const setIndex = useAppStore((s) => s.setFindIndex);
   const items = useAppStore((s) => s.items);
+  const setScrollToIndex = useAppStore((s) => s.setScrollToIndex);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const matches = useMemo(() => {
@@ -56,12 +73,32 @@ export function FindBar() {
   }, [matches.length, index, setIndex]);
 
   const current = matches.length ? matches[Math.min(index, matches.length - 1)] : -1;
+  const currentItem = current >= 0 ? items[current] : null;
+  const preview =
+    currentItem && query.trim()
+      ? snippetAround(itemText(currentItem), query)
+      : "";
 
   useEffect(() => {
     if (!open || current < 0) return;
+    // Prefer virtualizer scroll target; also DOM fallback.
+    setScrollToIndex(current);
     const el = document.querySelector(`[data-scroll-item="${current}"]`);
     el?.scrollIntoView({ block: "center", behavior: "smooth" });
-  }, [open, current, query]);
+    // Highlight ring
+    document.querySelectorAll("[data-find-hit]").forEach((n) => {
+      n.removeAttribute("data-find-hit");
+    });
+    el?.setAttribute("data-find-hit", "1");
+  }, [open, current, query, setScrollToIndex]);
+
+  useEffect(() => {
+    if (!open) {
+      document.querySelectorAll("[data-find-hit]").forEach((n) => {
+        n.removeAttribute("data-find-hit");
+      });
+    }
+  }, [open]);
 
   if (!open) return null;
 
@@ -76,68 +113,91 @@ export function FindBar() {
       style={{
         flexShrink: 0,
         display: "flex",
-        alignItems: "center",
-        gap: 8,
+        flexDirection: "column",
+        gap: 4,
         padding: "8px 12px",
         borderBottom: "1px solid var(--gb-border)",
         background: "var(--gb-surface-raised)",
       }}
     >
-      <span
-        style={{
-          fontSize: 11,
-          fontWeight: 600,
-          letterSpacing: "0.04em",
-          textTransform: "uppercase",
-          color: "var(--gb-ink-muted)",
-        }}
-      >
-        Find
-      </span>
-      <input
-        ref={inputRef}
-        value={query}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          setIndex(0);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            e.preventDefault();
-            setOpen(false);
-            return;
-          }
-          if (e.key === "Enter") {
-            e.preventDefault();
-            go(e.shiftKey ? -1 : 1);
-          }
-        }}
-        placeholder="Search conversation…"
-        style={input}
-      />
-      <span
-        style={{
-          fontSize: 11,
-          color: "var(--gb-ink-muted)",
-          fontFamily: "ui-monospace, Menlo, monospace",
-          minWidth: 56,
-        }}
-      >
-        {query.trim()
-          ? matches.length
-            ? `${Math.min(index + 1, matches.length)}/${matches.length}`
-            : "0/0"
-          : "—"}
-      </span>
-      <button type="button" style={btn} disabled={!matches.length} onClick={() => go(-1)}>
-        ↑
-      </button>
-      <button type="button" style={btn} disabled={!matches.length} onClick={() => go(1)}>
-        ↓
-      </button>
-      <button type="button" style={btn} onClick={() => setOpen(false)}>
-        Esc
-      </button>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 600,
+            letterSpacing: "0.04em",
+            textTransform: "uppercase",
+            color: "var(--gb-ink-muted)",
+          }}
+        >
+          Find
+        </span>
+        <input
+          ref={inputRef}
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setIndex(0);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              setOpen(false);
+              return;
+            }
+            if (e.key === "Enter") {
+              e.preventDefault();
+              go(e.shiftKey ? -1 : 1);
+            }
+          }}
+          placeholder="Search conversation…"
+          style={input}
+          aria-label="Find in scrollback"
+        />
+        <span
+          style={{
+            fontSize: 11,
+            color: "var(--gb-ink-muted)",
+            fontFamily: "ui-monospace, Menlo, monospace",
+            minWidth: 56,
+          }}
+        >
+          {query.trim()
+            ? matches.length
+              ? `${Math.min(index + 1, matches.length)}/${matches.length}`
+              : "0/0"
+            : "—"}
+        </span>
+        <button type="button" style={btn} disabled={!matches.length} onClick={() => go(-1)} title="Previous (Shift+Enter)">
+          ↑
+        </button>
+        <button type="button" style={btn} disabled={!matches.length} onClick={() => go(1)} title="Next (Enter)">
+          ↓
+        </button>
+        <button type="button" style={btn} onClick={() => setOpen(false)}>
+          Esc
+        </button>
+      </div>
+      {preview ? (
+        <div
+          style={{
+            fontSize: 11,
+            color: "var(--gb-ink-muted)",
+            fontFamily: "ui-monospace, Menlo, monospace",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            paddingLeft: 36,
+          }}
+          title={preview}
+        >
+          <span style={{ color: "var(--gb-accent)", marginRight: 6 }}>
+            #{current + 1}
+            {currentItem ? ` · ${currentItem.kind}` : ""}
+          </span>
+          {preview}
+        </div>
+      ) : null}
     </div>
   );
 }

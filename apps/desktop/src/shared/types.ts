@@ -140,6 +140,27 @@ export interface SaveCustomModelArgs {
   contextWindow?: number | null;
 }
 
+export interface McpToolInfo {
+  name: string;
+  description?: string | null;
+}
+
+export interface McpDoctorServer {
+  name: string;
+  status?: string | null;
+  error?: string | null;
+  tools: McpToolInfo[];
+  toolCount: number;
+}
+
+export interface McpDoctorReport {
+  ok: boolean;
+  raw: unknown;
+  servers: McpDoctorServer[];
+  summary: string;
+  stderr: string;
+}
+
 /** ACP `session/list` entry (may lack disk path). */
 export interface AgentSessionInfo {
   sessionId: string;
@@ -249,6 +270,10 @@ export interface GuiSettings {
   compactMode?: boolean;
   /** Show timestamps on scroll items. */
   showTimestamps?: boolean;
+  /** Show agent replies as raw markdown source. */
+  rawMarkdown?: boolean;
+  /** Persisted composer prompt history (newest last). */
+  promptHistory?: string[];
 }
 
 export interface McpServerInfo {
@@ -426,6 +451,8 @@ export type ScrollItem =
       locations?: string[];
       /** Structured ACP tool content (diffs, text blocks). */
       contentBlocks?: ToolContentBlock[];
+      /** Linked ACP terminal when the tool spawned/owns a terminal. */
+      terminalId?: string;
       ts?: number;
     }
   | {

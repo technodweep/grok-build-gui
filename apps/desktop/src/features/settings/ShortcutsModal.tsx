@@ -53,6 +53,8 @@ const ROWS: { keys: string; action: string }[] = [
   { keys: "/docs · /help", action: "In-app help & docs panel" },
   { keys: "/rules · /agents-md", action: "Project rules / AGENTS.md editor" },
   { keys: "/custom-models", action: "Custom model endpoints in config.toml" },
+  { keys: "/raw · Raw toolbar", action: "Toggle raw markdown for agent messages" },
+  { keys: "/history", action: "Fuzzy prompt history (preview, copy, delete)" },
   { keys: "Esc (in modal)", action: "Close dialog (focus trap restores focus)" },
   { keys: "/shortcuts", action: "Open this cheatsheet" },
   { keys: "/context", action: "Context window usage panel" },

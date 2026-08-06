@@ -33,6 +33,12 @@ pub struct GuiSettings {
     /// Show per-message timestamps in scrollback.
     #[serde(default)]
     pub show_timestamps: bool,
+    /// Show agent messages as raw markdown source.
+    #[serde(default)]
+    pub raw_markdown: bool,
+    /// Persisted prompt history for fuzzy recall (newest last).
+    #[serde(default)]
+    pub prompt_history: Vec<String>,
 }
 
 fn default_theme() -> String {

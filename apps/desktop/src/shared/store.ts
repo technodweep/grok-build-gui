@@ -106,6 +106,8 @@ interface AppState {
   compactMode: boolean;
   /** Show timestamps on scroll items. */
   showTimestamps: boolean;
+  /** Show agent messages as raw markdown source. */
+  rawMarkdown: boolean;
   /**
    * Fold policy for tool/thought details:
    * default = open while running; all-open / all-closed force.
@@ -143,6 +145,7 @@ interface AppState {
       output?: string;
       locations?: string[];
       contentBlocks?: ToolContentBlock[];
+      terminalId?: string;
     },
     sessionId?: string,
   ) => void;
@@ -220,6 +223,10 @@ interface AppState {
   clearElicitations: () => void;
   setCompactMode: (v: boolean) => void;
   setShowTimestamps: (v: boolean) => void;
+  setRawMarkdown: (v: boolean) => void;
+  removePromptHistoryAt: (idx: number) => void;
+  clearPromptHistory: () => void;
+  setPromptHistory: (list: string[]) => void;
   setFoldPolicy: (p: "default" | "all-open" | "all-closed") => void;
   setTimelineOpen: (v: boolean) => void;
   setScrollToIndex: (i: number | null) => void;
@@ -485,6 +492,16 @@ const CLIENT_COMMANDS: SlashCommand[] = [
     source: "client",
   },
   {
+    name: "raw",
+    description: "Toggle raw markdown source for agent messages",
+    source: "client",
+  },
+  {
+    name: "raw-markdown",
+    description: "Alias for /raw",
+    source: "client",
+  },
+  {
     name: "timeline",
     description: "Open turn outline / jump list",
     source: "client",
@@ -641,6 +658,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   elicitations: [],
   compactMode: false,
   showTimestamps: false,
+  rawMarkdown: false,
   foldPolicy: "default",
   timelineOpen: false,
   scrollToIndex: null,
@@ -752,6 +770,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             output: tool.output ?? prev.output,
             locations: tool.locations ?? prev.locations,
             contentBlocks: tool.contentBlocks ?? prev.contentBlocks,
+            terminalId: tool.terminalId ?? prev.terminalId,
           };
         }
         return updated;
@@ -769,6 +788,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           output: tool.output,
           locations: tool.locations,
           contentBlocks: tool.contentBlocks,
+          terminalId: tool.terminalId,
           ts: Date.now(),
         },
       ];
@@ -847,12 +867,24 @@ export const useAppStore = create<AppState>((set, get) => ({
     const t = text.trim();
     if (!t) return;
     const prev = get().promptHistory;
-    // Dedup consecutive identical prompts.
+    // Dedup consecutive identical prompts; drop older duplicate.
     if (prev[prev.length - 1] === t) return;
-    const next = [...prev, t];
-    // Cap at 100 entries.
-    set({ promptHistory: next.length > 100 ? next.slice(-100) : next });
+    const next = [...prev.filter((x) => x !== t), t];
+    set({ promptHistory: next.length > 200 ? next.slice(-200) : next });
   },
+  removePromptHistoryAt: (idx) => {
+    const prev = get().promptHistory;
+    if (idx < 0 || idx >= prev.length) return;
+    set({ promptHistory: prev.filter((_, i) => i !== idx) });
+  },
+  clearPromptHistory: () => set({ promptHistory: [] }),
+  setPromptHistory: (list) =>
+    set({
+      promptHistory: list
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .slice(-200),
+    }),
   setModelId: (modelId) => set({ modelId }),
   setEffort: (effort) => set({ effort }),
   setModels: (models) => {
@@ -1011,6 +1043,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     );
   },
   setShowTimestamps: (showTimestamps) => set({ showTimestamps }),
+  setRawMarkdown: (rawMarkdown) => set({ rawMarkdown }),
   setFoldPolicy: (foldPolicy) => set({ foldPolicy }),
   setTimelineOpen: (timelineOpen) => set({ timelineOpen }),
   setScrollToIndex: (scrollToIndex) =>

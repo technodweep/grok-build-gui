@@ -3,6 +3,7 @@ import {
   addMcpServer,
   getExtensionsHub,
   getGrokConfigPath,
+  mcpDoctor,
   pluginInstall,
   pluginSetEnabled,
   pluginUninstall,
@@ -16,6 +17,7 @@ import { useAppStore } from "../../shared/store";
 import type {
   ExtensionsHub,
   MarketplacePlugin,
+  McpDoctorReport,
   McpServerInfo,
   PluginInfo,
   SkillInfo,
@@ -492,17 +494,52 @@ function McpTab({
   onToggle: (s: McpServerInfo, enabled: boolean) => void;
   onRemove: (s: McpServerInfo) => void;
 }) {
+  const setError = useAppStore((s) => s.setError);
+  const [doctor, setDoctor] = useState<McpDoctorReport | null>(null);
+  const [doctorBusy, setDoctorBusy] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  const runDoctor = async (name?: string) => {
+    setDoctorBusy(true);
+    try {
+      const r = await mcpDoctor(name ?? null);
+      setDoctor(r);
+      if (name) setExpanded(name);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDoctorBusy(false);
+    }
+  };
+
+  const toolsFor = (name: string) =>
+    doctor?.servers.find((s) => s.name === name || s.name.toLowerCase() === name.toLowerCase());
+
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8, gap: 8, flexWrap: "wrap" }}>
         <p style={hint}>
           Servers from <code>[mcp_servers.*]</code> in config.toml. Toggle writes{" "}
-          <code>enabled</code>; restart the agent to reload tools.
+          <code>enabled</code>; restart the agent to reload tools. Use doctor to list live tools.
         </p>
-        <button type="button" style={primary} onClick={() => setAddOpen(!addOpen)}>
-          {addOpen ? "Cancel" : "Add server"}
-        </button>
+        <div style={{ display: "flex", gap: 6 }}>
+          <button
+            type="button"
+            style={ghost}
+            disabled={doctorBusy || busy}
+            onClick={() => void runDoctor()}
+            title="grok mcp doctor --json"
+          >
+            {doctorBusy ? "Probing…" : "Doctor / tools"}
+          </button>
+          <button type="button" style={primary} onClick={() => setAddOpen(!addOpen)}>
+            {addOpen ? "Cancel" : "Add server"}
+          </button>
+        </div>
       </div>
+      {doctor?.summary ? (
+        <p style={{ ...hint, color: "var(--gb-ink)" }}>{doctor.summary}</p>
+      ) : null}
 
       {addOpen ? (
         <div
@@ -576,38 +613,103 @@ function McpTab({
         <p style={hint}>No MCP servers configured.</p>
       ) : (
         <ul style={list}>
-          {servers.map((s) => (
-            <li key={s.name} style={listItem}>
-              <span
+          {servers.map((s) => {
+            const diag = toolsFor(s.name);
+            const open = expanded === s.name;
+            return (
+              <li
+                key={s.name}
                 style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: 999,
-                  background: s.enabled ? "var(--gb-success)" : "var(--gb-ink-muted)",
-                  flexShrink: 0,
+                  ...listItem,
+                  flexDirection: "column",
+                  alignItems: "stretch",
+                  gap: 8,
                 }}
-              />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 600, fontSize: 13 }}>{s.name}</div>
-                <div style={meta}>
-                  {s.transport}
-                  {s.command ? ` · ${s.command}` : ""}
-                  {s.url ? ` · ${s.url}` : ""}
-                </div>
-              </div>
-              <button
-                type="button"
-                style={ghost}
-                disabled={busy}
-                onClick={() => onToggle(s, !s.enabled)}
               >
-                {s.enabled ? "Disable" : "Enable"}
-              </button>
-              <button type="button" style={dangerBtn} disabled={busy} onClick={() => onRemove(s)}>
-                Remove
-              </button>
-            </li>
-          ))}
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: 999,
+                      background: s.enabled ? "var(--gb-success)" : "var(--gb-ink-muted)",
+                      flexShrink: 0,
+                    }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>{s.name}</div>
+                    <div style={meta}>
+                      {s.transport}
+                      {s.command ? ` · ${s.command}` : ""}
+                      {s.url ? ` · ${s.url}` : ""}
+                      {diag
+                        ? ` · ${diag.toolCount} tool(s)${diag.status ? ` · ${diag.status}` : ""}`
+                        : ""}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    style={ghost}
+                    disabled={doctorBusy}
+                    onClick={() => {
+                      if (open) setExpanded(null);
+                      else void runDoctor(s.name);
+                    }}
+                  >
+                    {open ? "Hide tools" : "Tools"}
+                  </button>
+                  <button
+                    type="button"
+                    style={ghost}
+                    disabled={busy}
+                    onClick={() => onToggle(s, !s.enabled)}
+                  >
+                    {s.enabled ? "Disable" : "Enable"}
+                  </button>
+                  <button type="button" style={dangerBtn} disabled={busy} onClick={() => onRemove(s)}>
+                    Remove
+                  </button>
+                </div>
+                {open ? (
+                  <div
+                    style={{
+                      marginLeft: 16,
+                      padding: 10,
+                      borderRadius: 8,
+                      border: "1px solid var(--gb-border)",
+                      background: "var(--gb-bg)",
+                      fontSize: 12,
+                    }}
+                  >
+                    {diag?.error ? (
+                      <div style={{ color: "var(--gb-danger)", marginBottom: 6 }}>{diag.error}</div>
+                    ) : null}
+                    {diag?.tools?.length ? (
+                      <ul style={{ margin: 0, paddingLeft: 16 }}>
+                        {diag.tools.map((t) => (
+                          <li key={t.name} style={{ marginBottom: 4 }}>
+                            <code style={{ color: "var(--gb-accent)" }}>{t.name}</code>
+                            {t.description ? (
+                              <span style={{ color: "var(--gb-ink-muted)" }}>
+                                {" "}
+                                — {t.description}
+                              </span>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div style={{ color: "var(--gb-ink-muted)" }}>
+                        {doctorBusy
+                          ? "Probing server…"
+                          : "No tools reported. Server may be offline, disabled, or doctor schema differs."}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

@@ -86,6 +86,16 @@ export interface UsageSummary {
   usagePercent: number;
   model: string | null;
   durationSec: number;
+  /** Estimated session totals from last turn + signals (best-effort). */
+  estimatedInputTokens: number;
+  estimatedOutputTokens: number;
+  cachedReadTokens: number;
+  reasoningTokens: number;
+  modelCalls: number;
+  avgResponseMs: number;
+  filesTouched: number;
+  linesAdded: number;
+  linesRemoved: number;
 }
 
 export function buildUsageSummary(
@@ -108,5 +118,14 @@ export function buildUsageSummary(
     usagePercent: pct,
     model: signals?.primaryModelId ?? modelId,
     durationSec: signals?.sessionDurationSeconds ?? 0,
+    estimatedInputTokens: lastUsage?.inputTokens ?? 0,
+    estimatedOutputTokens: lastUsage?.outputTokens ?? 0,
+    cachedReadTokens: lastUsage?.cachedReadTokens ?? 0,
+    reasoningTokens: lastUsage?.reasoningTokens ?? 0,
+    modelCalls: lastUsage?.modelCalls ?? 0,
+    avgResponseMs: signals?.avgResponseTimeMs ?? lastUsage?.apiDurationMs ?? 0,
+    filesTouched: signals?.totalFilesTouched ?? signals?.agentFilesTouched ?? 0,
+    linesAdded: signals?.agentLinesAdded ?? 0,
+    linesRemoved: signals?.agentLinesRemoved ?? 0,
   };
 }

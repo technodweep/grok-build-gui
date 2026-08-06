@@ -181,6 +181,13 @@ body {
   outline-offset: 2px;
 }
 
+/* Find-in-scrollback current hit (Ctrl+F) */
+[data-find-hit="1"] {
+  outline: 2px solid var(--gb-accent) !important;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(124, 156, 255, 0.15);
+}
+
 /* Compact density (C5) */
 [data-density="compact"] .gb-scrollback {
   --gb-item-gap: 8px;

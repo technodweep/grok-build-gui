@@ -197,6 +197,15 @@ export function setDefaultModelConfig(modelId?: string | null) {
   });
 }
 
+export function mcpDoctor(serverName?: string | null, binaryOverride?: string | null) {
+  return invoke<import("./types").McpDoctorReport>("mcp_doctor_cmd", {
+    args: {
+      serverName: serverName ?? null,
+      binaryOverride: binaryOverride ?? null,
+    },
+  });
+}
+
 export function deleteDiskSession(sessionId: string) {
   return invoke<void>("delete_disk_session", {
     args: { sessionId },

@@ -68,6 +68,9 @@ export function ContextPanel() {
   const setBusy = useAppStore((s) => s.setBusy);
   const pushItem = useAppStore((s) => s.pushItem);
   const setError = useAppStore((s) => s.setError);
+  const terminals = useAppStore((s) => s.terminals);
+  const setAccountOpen = useAppStore((s) => s.setAccountOpen);
+  const setAccountTab = useAppStore((s) => s.setAccountTab);
   const [error, setLocalError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState<Tab>("context");
@@ -414,11 +417,11 @@ export function ContextPanel() {
         ) : (
           <>
             <section style={{ marginTop: 16 }}>
-              <div style={sectionLabel}>Account</div>
+              <div style={sectionLabel}>Account & billing</div>
               <Row label="Auth" value={env?.authPresent ? "signed in" : "not detected"} />
               <Row label="Email" value={env?.authEmail || "—"} />
               <Row label="Mode" value={env?.authMode || "—"} />
-              <div style={{ marginTop: 12 }}>
+              <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
                 <button
                   type="button"
                   style={{
@@ -433,11 +436,21 @@ export function ContextPanel() {
                 >
                   {usageRunning ? "Running /usage…" : "Run agent /usage"}
                 </button>
-                <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--gb-ink-muted)" }}>
-                  Billing / quota details live in the agent. This runs the agent{" "}
-                  <code>/usage</code> command and streams the reply into chat.
-                </p>
+                <button
+                  type="button"
+                  style={ghost}
+                  onClick={() => {
+                    setAccountTab("account");
+                    setAccountOpen(true);
+                  }}
+                >
+                  Account hub
+                </button>
               </div>
+              <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--gb-ink-muted)" }}>
+                Plan quotas and spend stream into chat via agent <code>/usage</code>. Privacy /
+                ZDR: Account → Privacy.
+              </p>
             </section>
 
             <section style={{ marginTop: 20 }}>
@@ -459,10 +472,38 @@ export function ContextPanel() {
                 label="Duration"
                 value={usage.durationSec ? `${usage.durationSec}s` : "—"}
               />
+              <Row
+                label="Avg response"
+                value={
+                  usage.avgResponseMs
+                    ? `${(usage.avgResponseMs / 1000).toFixed(2)}s`
+                    : "—"
+                }
+              />
+              <Row
+                label="Files touched"
+                value={usage.filesTouched ? String(usage.filesTouched) : "—"}
+              />
+              <Row
+                label="Lines +/−"
+                value={
+                  usage.linesAdded || usage.linesRemoved
+                    ? `+${usage.linesAdded} / −${usage.linesRemoved}`
+                    : "—"
+                }
+              />
+              <Row
+                label="Live terminals"
+                value={
+                  terminals.length
+                    ? `${terminals.filter((t) => t.running).length} running / ${terminals.length}`
+                    : "0"
+                }
+              />
             </section>
 
             <section style={{ marginTop: 16 }}>
-              <div style={sectionLabel}>Last turn</div>
+              <div style={sectionLabel}>Last turn (API)</div>
               {usage.lastTurn ? (
                 <>
                   <Row
@@ -478,6 +519,22 @@ export function ContextPanel() {
                     value={
                       usage.lastTurn.outputTokens != null
                         ? fmt(usage.lastTurn.outputTokens)
+                        : "—"
+                    }
+                  />
+                  <Row
+                    label="Cached read"
+                    value={
+                      usage.lastTurn.cachedReadTokens != null
+                        ? fmt(usage.lastTurn.cachedReadTokens)
+                        : "—"
+                    }
+                  />
+                  <Row
+                    label="Reasoning"
+                    value={
+                      usage.lastTurn.reasoningTokens != null
+                        ? fmt(usage.lastTurn.reasoningTokens)
                         : "—"
                     }
                   />
@@ -514,7 +571,6 @@ export function ContextPanel() {
               )}
             </section>
 
-            {/* Mini bar for context fill */}
             <section style={{ marginTop: 16 }}>
               <div style={sectionLabel}>Context fill</div>
               <div style={pctBar(usage.usagePercent)} />

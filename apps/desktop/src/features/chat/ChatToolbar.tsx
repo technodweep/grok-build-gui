@@ -10,6 +10,8 @@ export function ChatToolbar() {
   const setShowTimestamps = useAppStore((s) => s.setShowTimestamps);
   const compactMode = useAppStore((s) => s.compactMode);
   const setCompactMode = useAppStore((s) => s.setCompactMode);
+  const rawMarkdown = useAppStore((s) => s.rawMarkdown);
+  const setRawMarkdown = useAppStore((s) => s.setRawMarkdown);
   const jumpUserTurn = useAppStore((s) => s.jumpUserTurn);
   const items = useAppStore((s) => s.items);
   const setContextOpen = useAppStore((s) => s.setContextOpen);
@@ -113,6 +115,14 @@ export function ChatToolbar() {
         onClick={() => setCompactMode(!compactMode)}
       >
         Compact
+      </button>
+      <button
+        type="button"
+        style={btn(rawMarkdown)}
+        title="Raw markdown source for agent messages (/raw)"
+        onClick={() => setRawMarkdown(!rawMarkdown)}
+      >
+        Raw
       </button>
       <button
         type="button"

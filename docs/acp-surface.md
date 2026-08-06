@@ -114,6 +114,12 @@ Update this checklist as features land.
 - [x] Phase I: Modal a11y (focus trap, ARIA, Esc)
 - [x] Project rules / AGENTS.md editor (`/rules`)
 - [x] Custom models config UI (`/custom-models`, `[model.*]` + default)
+- [x] Raw markdown toggle (`/raw`)
+- [x] Fuzzy history panel (preview / copy / delete / persist)
+- [x] MCP tools list via `grok mcp doctor --json`
+- [x] Terminal embed in tool cards (live tail)
+- [x] Find scrollback jump + hit highlight + snippet
+- [x] Usage panel session depth (files, lines, terminals, cache tokens)
 
 ## Packaging (PR8)
 

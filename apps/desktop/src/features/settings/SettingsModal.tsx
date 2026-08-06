@@ -19,12 +19,15 @@ export function SettingsModal() {
   const setMultilineMode = useAppStore((s) => s.setMultilineMode);
   const setCompactMode = useAppStore((s) => s.setCompactMode);
   const setShowTimestamps = useAppStore((s) => s.setShowTimestamps);
+  const setRawMarkdown = useAppStore((s) => s.setRawMarkdown);
   const setEnv = useAppStore((s) => s.setEnv);
   const setError = useAppStore((s) => s.setError);
   const alwaysApprove = useAppStore((s) => s.alwaysApprove);
   const multilineModeStore = useAppStore((s) => s.multilineMode);
   const compactModeStore = useAppStore((s) => s.compactMode);
   const showTimestampsStore = useAppStore((s) => s.showTimestamps);
+  const rawMarkdownStore = useAppStore((s) => s.rawMarkdown);
+  const promptHistory = useAppStore((s) => s.promptHistory);
   const projectCwd = useAppStore((s) => s.projectCwd);
   const session = useAppStore((s) => s.session);
 
@@ -37,6 +40,7 @@ export function SettingsModal() {
   const [multiline, setMultiline] = useState(multilineModeStore);
   const [compact, setCompact] = useState(compactModeStore);
   const [timestamps, setTimestamps] = useState(showTimestampsStore);
+  const [rawMd, setRawMd] = useState(rawMarkdownStore);
   const [saving, setSaving] = useState(false);
   const [grok, setGrok] = useState<GrokConfigOverview | null>(null);
   const [grokLoading, setGrokLoading] = useState(false);
@@ -60,6 +64,7 @@ export function SettingsModal() {
       setMultiline(!!s.multilineMode);
       setCompact(!!s.compactMode);
       setTimestamps(!!s.showTimestamps);
+      setRawMd(!!s.rawMarkdown);
     });
   }, [open]);
 
@@ -88,12 +93,15 @@ export function SettingsModal() {
         multilineMode: multiline,
         compactMode: compact,
         showTimestamps: timestamps,
+        rawMarkdown: rawMd,
+        promptHistory: promptHistory.slice(-200),
       };
       await setGuiSettings(settings);
       setAlwaysApprove(yolo);
       setMultilineMode(multiline);
       setCompactMode(compact);
       setShowTimestamps(timestamps);
+      setRawMarkdown(rawMd);
       applyTheme(theme, fontSize, compact);
       const env = await getEnvironment(binaryOverride.trim() || null);
       setEnv(env);
@@ -258,6 +266,20 @@ export function SettingsModal() {
                 </label>
                 <p style={hint}>
                   Display local time on each scroll item. Toggle with <code>/timestamps</code>.
+                </p>
+              </section>
+
+              <section style={section}>
+                <label style={label}>
+                  <input
+                    type="checkbox"
+                    checked={rawMd}
+                    onChange={(e) => setRawMd(e.target.checked)}
+                  />{" "}
+                  Raw markdown source for agent messages
+                </label>
+                <p style={hint}>
+                  Show unrendered markdown. Toggle with <code>/raw</code> or the toolbar.
                 </p>
               </section>
 

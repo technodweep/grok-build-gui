@@ -25,14 +25,15 @@ use config::{
     load_custom_models, load_extensions_hub, load_grok_config_overview, load_memory_catalog,
     load_privacy_config, load_project_rules, load_sandbox_status, load_settings, plugin_install,
     plugin_set_enabled, plugin_uninstall, read_local_media, read_memory_file, read_project_rule,
-    remove_mcp_server, run_doctor, run_login, run_logout, save_custom_model, save_project_rule,
-    save_settings, save_user_agent, save_user_persona, set_default_model, set_hook_enabled,
-    set_mcp_enabled, set_memory_config_enabled, set_project_trust, set_sandbox_profile,
-    set_skill_disabled, set_telemetry_enabled, AddMcpArgs, AgentDef, AgentsCatalog, AuthAccountInfo,
-    CliActionResult, CustomModelDef, CustomModelsCatalog, DoctorReport, EnvironmentInfo,
-    ExtensionsHub, GrokConfigOverview, GuiSettings, HookInfo, LocalMediaData, LoginMode,
-    McpServerInfo, MemoryCatalog, MemoryFileContent, MemoryFileEntry, PersonaDef, PrivacyConfig,
-    ProjectRuleContent, ProjectRulesCatalog, SandboxStatus, SaveCustomModelArgs, TrustedFolder,
+    remove_mcp_server, run_doctor, run_login, run_logout, run_mcp_doctor, save_custom_model,
+    save_project_rule, save_settings, save_user_agent, save_user_persona, set_default_model,
+    set_hook_enabled, set_mcp_enabled, set_memory_config_enabled, set_project_trust,
+    set_sandbox_profile, set_skill_disabled, set_telemetry_enabled, AddMcpArgs, AgentDef,
+    AgentsCatalog, AuthAccountInfo, CliActionResult, CustomModelDef, CustomModelsCatalog,
+    DoctorReport, EnvironmentInfo, ExtensionsHub, GrokConfigOverview, GuiSettings, HookInfo,
+    LocalMediaData, LoginMode, McpDoctorReport, McpServerInfo, MemoryCatalog, MemoryFileContent,
+    MemoryFileEntry, PersonaDef, PrivacyConfig, ProjectRuleContent, ProjectRulesCatalog,
+    SandboxStatus, SaveCustomModelArgs, TrustedFolder,
 };
 use error::AppResult;
 use fs_index::FileEntry;
@@ -674,6 +675,26 @@ fn set_default_model_cmd(args: DefaultModelArgs) -> AppResult<Option<String>> {
     set_default_model(args.model_id.as_deref())
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct McpDoctorArgs {
+    #[serde(default)]
+    server_name: Option<String>,
+    #[serde(default)]
+    binary_override: Option<String>,
+}
+
+#[tauri::command]
+async fn mcp_doctor_cmd(args: McpDoctorArgs) -> AppResult<McpDoctorReport> {
+    let server = args.server_name.clone();
+    let binary = args.binary_override.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        run_mcp_doctor(server.as_deref(), binary.as_deref())
+    })
+    .await
+    .map_err(|e| error::AppError::Agent(format!("mcp doctor task: {e}")))?
+}
+
 // ── Memory & media (Phase G) ───────────────────────────────────────────────
 
 #[tauri::command]
@@ -1069,6 +1090,7 @@ pub fn run() {
             save_custom_model_cmd,
             delete_custom_model_cmd,
             set_default_model_cmd,
+            mcp_doctor_cmd,
             get_agents_catalog,
             save_agent_def,
             delete_agent_def,

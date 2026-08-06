@@ -1,6 +1,8 @@
 //! Read/write custom `[model.<id>]` sections and `[models].default` in config.toml.
+//! Also MCP doctor probe for tool discovery (via CLI).
 
 use std::fs;
+use std::process::{Command, Stdio};
 
 use serde::{Deserialize, Serialize};
 use toml::Value as TomlValue;
@@ -304,6 +306,200 @@ pub fn set_default_model(model_id: Option<&str>) -> AppResult<Option<String>> {
         .map(|s| s.to_string()))
 }
 
+// ── MCP doctor (tools / health) ────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpDoctorReport {
+    pub ok: bool,
+    pub raw: serde_json::Value,
+    #[serde(default)]
+    pub servers: Vec<McpDoctorServer>,
+    #[serde(default)]
+    pub summary: String,
+    #[serde(default)]
+    pub stderr: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpDoctorServer {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    #[serde(default)]
+    pub tools: Vec<McpToolInfo>,
+    #[serde(default)]
+    pub tool_count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpToolInfo {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+/// Run `grok mcp doctor --json` (optional server name filter).
+pub fn run_mcp_doctor(
+    server_name: Option<&str>,
+    binary_override: Option<&str>,
+) -> AppResult<McpDoctorReport> {
+    use super::detect_grok_binary;
+    let binary = detect_grok_binary(binary_override).ok_or(AppError::GrokNotFound)?;
+    let mut cmd = Command::new(&binary);
+    cmd.arg("mcp").arg("doctor").arg("--json");
+    if let Some(name) = server_name.map(str::trim).filter(|s| !s.is_empty()) {
+        cmd.arg(name);
+    }
+    cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
+    if let Some(home) = dirs::home_dir() {
+        let grok_bin = home.join(".grok/bin");
+        if let Ok(path) = std::env::var("PATH") {
+            let prefix = grok_bin.display().to_string();
+            if !path.split(':').any(|p| p == prefix) {
+                cmd.env("PATH", format!("{prefix}:{path}"));
+            }
+        }
+    }
+    let output = cmd
+        .output()
+        .map_err(|e| AppError::Agent(format!("spawn grok mcp doctor: {e}")))?;
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    let raw: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap_or_else(|_| {
+        serde_json::json!({ "parseError": stdout.chars().take(2000).collect::<String>() })
+    });
+
+    let mut servers = Vec::new();
+    // Shape varies: { servers: [ { name, tools, status, error } ] } or map
+    if let Some(arr) = raw.get("servers").and_then(|s| s.as_array()) {
+        for s in arr {
+            servers.push(parse_mcp_server_entry(s));
+        }
+    } else if let Some(obj) = raw.get("servers").and_then(|s| s.as_object()) {
+        for (name, s) in obj {
+            let mut entry = parse_mcp_server_entry(s);
+            if entry.name.is_empty() {
+                entry.name = name.clone();
+            }
+            servers.push(entry);
+        }
+    } else if raw.get("name").is_some() || raw.get("tools").is_some() {
+        // Single-server doctor response
+        servers.push(parse_mcp_server_entry(&raw));
+    }
+
+    let healthy = raw
+        .get("healthy_count")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(servers.iter().filter(|s| s.error.is_none()).count() as u64);
+    let failing = raw
+        .get("failing_count")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(servers.iter().filter(|s| s.error.is_some()).count() as u64);
+    let tool_total: usize = servers.iter().map(|s| s.tool_count).sum();
+    let server_count = servers.len();
+
+    Ok(McpDoctorReport {
+        ok: output.status.success() || !stdout.trim().is_empty(),
+        raw,
+        servers,
+        summary: format!(
+            "{healthy} healthy, {failing} failing, {tool_total} tool(s) across {server_count} server(s)"
+        ),
+        stderr: stderr.chars().take(2000).collect(),
+    })
+}
+
+fn parse_mcp_server_entry(s: &serde_json::Value) -> McpDoctorServer {
+    let name = s
+        .get("name")
+        .or_else(|| s.get("server"))
+        .or_else(|| s.get("id"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let status = s
+        .get("status")
+        .and_then(|v| {
+            if let Some(st) = v.as_str() {
+                Some(st.to_string())
+            } else if let Some(obj) = v.as_object() {
+                obj.get("status")
+                    .and_then(|x| x.as_str())
+                    .map(|s| s.to_string())
+            } else {
+                None
+            }
+        });
+    let error = s
+        .get("error")
+        .and_then(|v| v.as_str())
+        .or_else(|| s.get("message").and_then(|v| v.as_str()))
+        .map(|s| s.to_string());
+
+    let mut tools = Vec::new();
+    if let Some(arr) = s.get("tools").and_then(|t| t.as_array()) {
+        for t in arr {
+            let n = t
+                .get("name")
+                .or_else(|| t.get("tool"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            if n.is_empty() {
+                continue;
+            }
+            tools.push(McpToolInfo {
+                name: n,
+                description: t
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
+            });
+        }
+    } else if let Some(arr) = s.pointer("/result/tools").and_then(|t| t.as_array()) {
+        for t in arr {
+            let n = t
+                .get("name")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            if n.is_empty() {
+                continue;
+            }
+            tools.push(McpToolInfo {
+                name: n,
+                description: t
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
+            });
+        }
+    }
+
+    let tool_count = if tools.is_empty() {
+        s.get("tool_count")
+            .or_else(|| s.get("tools_count"))
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0) as usize
+    } else {
+        tools.len()
+    };
+
+    McpDoctorServer {
+        name,
+        status,
+        error,
+        tools,
+        tool_count,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -312,5 +508,21 @@ mod tests {
     fn validate_id() {
         assert!(validate_model_id("my-model").is_ok());
         assert!(validate_model_id("bad id").is_err());
+    }
+
+    #[test]
+    fn parse_server_with_tools() {
+        let v = serde_json::json!({
+            "name": "github",
+            "status": "ok",
+            "tools": [
+                { "name": "create_issue", "description": "Create an issue" },
+                { "name": "list_prs" }
+            ]
+        });
+        let s = parse_mcp_server_entry(&v);
+        assert_eq!(s.name, "github");
+        assert_eq!(s.tools.len(), 2);
+        assert_eq!(s.tool_count, 2);
     }
 }

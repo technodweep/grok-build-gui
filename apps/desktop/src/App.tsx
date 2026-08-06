@@ -28,6 +28,7 @@ import { HelpDocsPanel } from "./features/help/HelpDocsPanel";
 import { ProjectConfigModal } from "./features/project/ProjectConfigModal";
 import { Welcome } from "./features/sessions/Welcome";
 import { extractMediaPaths, mediaKind } from "./shared/mediaPaths";
+import { extractTerminalId } from "./shared/terminalId";
 import {
   getEnvironment,
   getGuiSettings,
@@ -190,6 +191,12 @@ export default function App() {
         }
         if (typeof settings.showTimestamps === "boolean") {
           setShowTimestamps(settings.showTimestamps);
+        }
+        if (typeof settings.rawMarkdown === "boolean") {
+          useAppStore.getState().setRawMarkdown(settings.rawMarkdown);
+        }
+        if (Array.isArray(settings.promptHistory) && settings.promptHistory.length) {
+          useAppStore.getState().setPromptHistory(settings.promptHistory);
         }
         const info = await getEnvironment(settings.binaryOverride ?? null);
         setEnv(info);
@@ -429,6 +436,7 @@ export default function App() {
                   (contentText(update) || undefined),
                 locations: locationsOf(update),
                 contentBlocks: fromBlocks.contentBlocks,
+                terminalId: extractTerminalId(update as Record<string, unknown>),
               },
               sid,
             );

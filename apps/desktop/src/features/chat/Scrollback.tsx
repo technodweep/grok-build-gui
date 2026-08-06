@@ -1,5 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, type CSSProperties } from "react";
+import { killTerminal, releaseTerminal } from "../../shared/api";
 import { LocalMedia } from "../../shared/LocalMedia";
 import { MarkdownBody } from "../../shared/MarkdownBody";
 import { extractMediaPaths, mediaKind } from "../../shared/mediaPaths";
@@ -213,6 +214,189 @@ function detailsOpen(
   return defaultOpen;
 }
 
+function ToolTerminalEmbed({ terminalId }: { terminalId: string }) {
+  const term = useAppStore((s) =>
+    s.terminals.find((t) => t.terminalId === terminalId),
+  );
+  const setTerminalsOpen = useAppStore((s) => s.setTerminalsOpen);
+  const setSelectedTerminalId = useAppStore((s) => s.setSelectedTerminalId);
+  const setError = useAppStore((s) => s.setError);
+  const tail = term?.output?.slice(-2500) ?? "";
+
+  return (
+    <div
+      style={{
+        marginTop: 10,
+        border: "1px solid var(--gb-border)",
+        borderRadius: 8,
+        background: "#0c0e12",
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          alignItems: "center",
+          padding: "6px 10px",
+          borderBottom: "1px solid var(--gb-border)",
+          fontSize: 11,
+          color: "var(--gb-ink-muted)",
+        }}
+      >
+        <span
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: 999,
+            background: term?.running
+              ? "var(--gb-warning)"
+              : term?.exitCode === 0 || term?.exitCode == null
+                ? "var(--gb-success)"
+                : "var(--gb-danger)",
+          }}
+        />
+        <span style={{ fontFamily: "ui-monospace, Menlo, monospace" }}>
+          terminal · {terminalId}
+        </span>
+        {term?.command ? (
+          <span
+            style={{
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              flex: 1,
+              minWidth: 0,
+            }}
+            title={term.command}
+          >
+            {term.command.slice(0, 80)}
+          </span>
+        ) : (
+          <span style={{ flex: 1, color: "var(--gb-ink-muted)" }}>
+            {term ? "" : "(not in live roster)"}
+          </span>
+        )}
+        <button
+          type="button"
+          style={termBtn}
+          onClick={() => {
+            setSelectedTerminalId(terminalId);
+            setTerminalsOpen(true);
+          }}
+        >
+          Open
+        </button>
+        {term?.running ? (
+          <button
+            type="button"
+            style={termBtn}
+            onClick={() =>
+              void killTerminal(terminalId).catch((e) =>
+                setError(e instanceof Error ? e.message : String(e)),
+              )
+            }
+          >
+            Kill
+          </button>
+        ) : term ? (
+          <button
+            type="button"
+            style={termBtn}
+            onClick={() =>
+              void releaseTerminal(terminalId).catch((e) =>
+                setError(e instanceof Error ? e.message : String(e)),
+              )
+            }
+          >
+            Release
+          </button>
+        ) : null}
+      </div>
+      {tail ? (
+        <pre
+          style={{
+            margin: 0,
+            maxHeight: 160,
+            overflow: "auto",
+            padding: 8,
+            fontSize: 11,
+            color: "#8b95a8",
+            whiteSpace: "pre-wrap",
+            fontFamily: "ui-monospace, Menlo, monospace",
+          }}
+        >
+          {tail}
+        </pre>
+      ) : null}
+    </div>
+  );
+}
+
+const termBtn: CSSProperties = {
+  border: "1px solid var(--gb-border)",
+  background: "var(--gb-surface)",
+  color: "var(--gb-ink)",
+  borderRadius: 6,
+  padding: "2px 8px",
+  fontSize: 11,
+  cursor: "pointer",
+};
+
+function AgentMessageView({
+  item,
+  pad,
+  fontSize,
+  showTimestamps,
+}: {
+  item: Extract<ScrollItem, { kind: "agent" }>;
+  pad: string;
+  fontSize: number;
+  showTimestamps: boolean;
+}) {
+  const rawMarkdown = useAppStore((s) => s.rawMarkdown);
+  const text = asDisplayText(item.text);
+  return (
+    <div
+      className="gb-scroll-item"
+      style={{
+        borderRadius: 12,
+        border: "1px solid var(--gb-border)",
+        background: "var(--gb-agent)",
+        padding: pad,
+        contentVisibility: "auto",
+        containIntrinsicSize: "auto 96px",
+      }}
+    >
+      <LabelRow
+        label={rawMarkdown ? "Grok (raw)" : "Grok"}
+        color="var(--gb-accent)"
+        ts={item.ts}
+        showTs={showTimestamps}
+      />
+      {rawMarkdown ? (
+        <pre
+          style={{
+            margin: 0,
+            whiteSpace: "pre-wrap",
+            fontSize: fontSize - 1,
+            fontFamily: "ui-monospace, Menlo, monospace",
+            color: "var(--gb-ink)",
+            lineHeight: 1.45,
+          }}
+        >
+          {text}
+        </pre>
+      ) : (
+        <div className="prose-chat" style={{ fontSize }}>
+          <MarkdownBody text={text} />
+          <AgentMediaExtras text={text} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ItemView({ item }: { item: ScrollItem }) {
   const showTimestamps = useAppStore((s) => s.showTimestamps);
   const foldPolicy = useAppStore((s) => s.foldPolicy);
@@ -240,23 +424,12 @@ function ItemView({ item }: { item: ScrollItem }) {
       );
     case "agent":
       return (
-        <div
-          className="gb-scroll-item"
-          style={{
-            borderRadius: 12,
-            border: "1px solid var(--gb-border)",
-            background: "var(--gb-agent)",
-            padding: pad,
-            contentVisibility: "auto",
-            containIntrinsicSize: "auto 96px",
-          }}
-        >
-          <LabelRow label="Grok" color="var(--gb-accent)" ts={item.ts} showTs={showTimestamps} />
-          <div className="prose-chat" style={{ fontSize }}>
-            <MarkdownBody text={asDisplayText(item.text)} />
-            <AgentMediaExtras text={asDisplayText(item.text)} />
-          </div>
-        </div>
+        <AgentMessageView
+          item={item}
+          pad={pad}
+          fontSize={fontSize}
+          showTimestamps={showTimestamps}
+        />
       );
     case "thought": {
       const open = detailsOpen(foldPolicy, false);
@@ -360,6 +533,11 @@ function ItemView({ item }: { item: ScrollItem }) {
               <span style={{ fontSize: 11, color: "var(--gb-ink-muted)" }}>{item.toolKind}</span>
             ) : null}
             <span style={{ fontSize: 11, color: "var(--gb-ink-muted)" }}>{item.status}</span>
+            {item.terminalId ? (
+              <span style={{ fontSize: 11, color: "var(--gb-warning)" }}>
+                term:{item.terminalId.slice(0, 12)}
+              </span>
+            ) : null}
             {item.locations && item.locations.length > 0 ? (
               <span style={{ fontSize: 11, color: "var(--gb-accent)" }}>
                 {item.locations.slice(0, 2).join(", ")}
@@ -410,6 +588,7 @@ function ItemView({ item }: { item: ScrollItem }) {
             </div>
           ) : null}
           {hasBlocks ? <ContentBlocks blocks={item.contentBlocks!} /> : null}
+          {item.terminalId ? <ToolTerminalEmbed terminalId={item.terminalId} /> : null}
           {item.output ? (
             <div style={{ marginTop: 10 }}>
               <div

@@ -17,8 +17,8 @@ pub use account::{
     LoginMode, PrivacyConfig, SandboxStatus,
 };
 pub use custom_models::{
-    delete_custom_model, load_custom_models, save_custom_model, set_default_model, CustomModelDef,
-    CustomModelsCatalog, SaveCustomModelArgs,
+    delete_custom_model, load_custom_models, run_mcp_doctor, save_custom_model, set_default_model,
+    CustomModelDef, CustomModelsCatalog, McpDoctorReport, SaveCustomModelArgs,
 };
 pub use project_rules::{
     ensure_agents_md, load_project_rules, read_project_rule, save_project_rule, ProjectRuleContent,

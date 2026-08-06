@@ -83,6 +83,8 @@ export function Composer() {
   const compactMode = useAppStore((s) => s.compactMode);
   const setCompactMode = useAppStore((s) => s.setCompactMode);
   const showTimestamps = useAppStore((s) => s.showTimestamps);
+  const rawMarkdown = useAppStore((s) => s.rawMarkdown);
+  const setRawMarkdown = useAppStore((s) => s.setRawMarkdown);
   const setShowTimestamps = useAppStore((s) => s.setShowTimestamps);
   const setFoldPolicy = useAppStore((s) => s.setFoldPolicy);
   const setTimelineOpen = useAppStore((s) => s.setTimelineOpen);
@@ -1197,6 +1199,24 @@ export function Composer() {
         });
         break;
       }
+      case "raw":
+      case "raw-markdown": {
+        const next = !rawMarkdown;
+        setRawMarkdown(next);
+        try {
+          const { getGuiSettings, setGuiSettings } = await import("../../shared/api");
+          const s = await getGuiSettings();
+          await setGuiSettings({ ...s, rawMarkdown: next });
+        } catch {
+          /* ignore */
+        }
+        pushItem({
+          id: nextId(),
+          kind: "system",
+          text: next ? "Raw markdown on" : "Raw markdown off",
+        });
+        break;
+      }
       case "timeline": {
         setTimelineOpen(!timelineOpen);
         break;
@@ -1250,6 +1270,17 @@ export function Composer() {
       pushItem({ id: nextId(), kind: "user", text: display || atts.map((a) => `@${a}`).join(" ") });
       if (text.trim()) {
         pushPromptHistory(text.trim());
+        // Persist history for fuzzy /history across restarts (best-effort).
+        void (async () => {
+          try {
+            const { getGuiSettings, setGuiSettings } = await import("../../shared/api");
+            const s = await getGuiSettings();
+            const hist = useAppStore.getState().promptHistory;
+            await setGuiSettings({ ...s, promptHistory: hist.slice(-200) });
+          } catch {
+            /* ignore */
+          }
+        })();
         setHistIdx(-1);
         histDraftBackup.current = "";
       }
