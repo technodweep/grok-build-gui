@@ -723,9 +723,101 @@ pub fn load_signals(session_id: &str) -> AppResult<SessionSignals> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
 
     #[test]
     fn urldecode_slash() {
         assert_eq!(urlencoding_decode("%2Fhome%2Fsandeep"), "/home/sandeep");
+    }
+
+    #[test]
+    fn parse_summary_from_disk() {
+        let dir = std::env::temp_dir().join(format!(
+            "grok-gui-session-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let summary = dir.join("summary.json");
+        // Shape matches on-disk Grok summary.json (title/model at root).
+        let body = r#"{
+          "info": {
+            "id": "sess-abc",
+            "cwd": "/tmp/project"
+          },
+          "generated_title": "Test session",
+          "created_at": "2026-01-01T00:00:00Z",
+          "last_active_at": "2026-01-02T00:00:00Z",
+          "current_model_id": "grok-4.5",
+          "num_messages": 3
+        }"#;
+        let mut f = fs::File::create(&summary).unwrap();
+        f.write_all(body.as_bytes()).unwrap();
+        let s = parse_summary(&summary).unwrap();
+        assert_eq!(s.id, "sess-abc");
+        assert_eq!(s.title, "Test session");
+        assert_eq!(s.cwd, "/tmp/project");
+        assert_eq!(s.model_id.as_deref(), Some("grok-4.5"));
+        assert_eq!(s.num_messages, Some(3));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn list_sessions_filters_cwd() {
+        let root = std::env::temp_dir().join(format!(
+            "grok-gui-sessions-root-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        let a = root.join("%2Ftmp%2Fa").join("sess1");
+        let b = root.join("%2Ftmp%2Fb").join("sess2");
+        fs::create_dir_all(&a).unwrap();
+        fs::create_dir_all(&b).unwrap();
+        for (path, id, cwd) in [
+            (a.join("summary.json"), "s1", "/tmp/a"),
+            (b.join("summary.json"), "s2", "/tmp/b"),
+        ] {
+            let body = format!(
+                r#"{{"info":{{"id":"{id}","cwd":"{cwd}"}},"generated_title":"{id}"}}"#
+            );
+            fs::write(&path, body).unwrap();
+        }
+
+        // scan_for_summaries is private; exercise via temporary GROK_HOME
+        // SAFETY: test-only process isolation
+        let prev = std::env::var("GROK_HOME").ok();
+        unsafe {
+            std::env::set_var("GROK_HOME", root.parent().unwrap().join("fake-grok-home"));
+        }
+        // Put sessions under fake home
+        let home = crate::config::grok_home();
+        let sessions = home.join("sessions");
+        let _ = fs::remove_dir_all(&sessions);
+        // copy tree
+        copy_dir(&root, &sessions);
+        let all = list_sessions(None).unwrap();
+        assert!(all.len() >= 2);
+        let filtered = list_sessions(Some("/tmp/a")).unwrap();
+        assert!(filtered.iter().all(|s| s.cwd.trim_end_matches('/') == "/tmp/a"));
+        assert!(!filtered.is_empty());
+        match prev {
+            Some(v) => unsafe { std::env::set_var("GROK_HOME", v) },
+            None => unsafe { std::env::remove_var("GROK_HOME") },
+        }
+        let _ = fs::remove_dir_all(&root);
+        let _ = fs::remove_dir_all(&home);
+    }
+
+    fn copy_dir(src: &Path, dst: &Path) {
+        fs::create_dir_all(dst).unwrap();
+        for e in fs::read_dir(src).unwrap().flatten() {
+            let p = e.path();
+            let to = dst.join(e.file_name());
+            if p.is_dir() {
+                copy_dir(&p, &to);
+            } else {
+                fs::copy(&p, &to).unwrap();
+            }
+        }
     }
 }

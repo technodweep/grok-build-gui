@@ -5,6 +5,12 @@ mod events;
 mod fs_index;
 mod session;
 
+/// Live-agent helpers for integration tests (`GROK_GUI_INTEGRATION=1`).
+#[doc(hidden)]
+pub mod test_support {
+    pub use crate::acp::{authenticate_cached, list_sessions_ephemeral};
+}
+
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -15,13 +21,16 @@ use acp::{
 };
 use config::{
     add_mcp_server, delete_memory_file, delete_user_agent, delete_user_persona, environment_info,
-    list_recent_media, load_agents_catalog, load_extensions_hub, load_grok_config_overview,
-    load_memory_catalog, load_settings, plugin_install, plugin_set_enabled, plugin_uninstall,
-    read_local_media, read_memory_file, remove_mcp_server, save_settings, save_user_agent,
-    save_user_persona, set_hook_enabled, set_mcp_enabled, set_memory_config_enabled,
-    set_project_trust, set_skill_disabled, AddMcpArgs, AgentDef, AgentsCatalog, EnvironmentInfo,
-    ExtensionsHub, GrokConfigOverview, GuiSettings, HookInfo, LocalMediaData, McpServerInfo,
-    MemoryCatalog, MemoryFileContent, MemoryFileEntry, PersonaDef, TrustedFolder,
+    list_recent_media, load_agents_catalog, load_auth_account, load_extensions_hub,
+    load_grok_config_overview, load_memory_catalog, load_privacy_config, load_sandbox_status,
+    load_settings, plugin_install, plugin_set_enabled, plugin_uninstall, read_local_media,
+    read_memory_file, remove_mcp_server, run_doctor, run_login, run_logout, save_settings,
+    save_user_agent, save_user_persona, set_hook_enabled, set_mcp_enabled, set_memory_config_enabled,
+    set_project_trust, set_sandbox_profile, set_skill_disabled, set_telemetry_enabled, AddMcpArgs,
+    AgentDef, AgentsCatalog, AuthAccountInfo, CliActionResult, DoctorReport, EnvironmentInfo,
+    ExtensionsHub, GrokConfigOverview, GuiSettings, HookInfo, LocalMediaData, LoginMode,
+    McpServerInfo, MemoryCatalog, MemoryFileContent, MemoryFileEntry, PersonaDef, PrivacyConfig,
+    SandboxStatus, TrustedFolder,
 };
 use error::AppResult;
 use fs_index::FileEntry;
@@ -496,6 +505,86 @@ fn plugin_set_enabled_cmd(args: NamedEnabledArgs) -> AppResult<String> {
     plugin_set_enabled(&args.name, args.enabled)
 }
 
+// ── Account, sandbox, doctor (Phase H) ─────────────────────────────────────
+
+#[tauri::command]
+fn get_auth_account() -> AuthAccountInfo {
+    load_auth_account()
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LoginArgs {
+    #[serde(default)]
+    mode: Option<String>,
+    #[serde(default)]
+    binary_override: Option<String>,
+}
+
+#[tauri::command]
+async fn grok_login_cmd(args: LoginArgs) -> AppResult<CliActionResult> {
+    let mode = LoginMode::from_str_loose(args.mode.as_deref().unwrap_or("oauth"));
+    let binary = args.binary_override.clone();
+    tauri::async_runtime::spawn_blocking(move || run_login(mode, binary.as_deref()))
+        .await
+        .map_err(|e| error::AppError::Agent(format!("login task: {e}")))?
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BinaryOptArgs {
+    #[serde(default)]
+    binary_override: Option<String>,
+}
+
+#[tauri::command]
+async fn grok_logout_cmd(args: BinaryOptArgs) -> AppResult<CliActionResult> {
+    let binary = args.binary_override.clone();
+    tauri::async_runtime::spawn_blocking(move || run_logout(binary.as_deref()))
+        .await
+        .map_err(|e| error::AppError::Agent(format!("logout task: {e}")))?
+}
+
+#[tauri::command]
+async fn grok_doctor_cmd(args: BinaryOptArgs) -> AppResult<DoctorReport> {
+    let binary = args.binary_override.clone();
+    tauri::async_runtime::spawn_blocking(move || run_doctor(binary.as_deref()))
+        .await
+        .map_err(|e| error::AppError::Agent(format!("doctor task: {e}")))?
+}
+
+#[tauri::command]
+fn get_sandbox_status() -> SandboxStatus {
+    load_sandbox_status()
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SandboxProfileArgs {
+    profile: String,
+}
+
+#[tauri::command]
+fn set_sandbox_profile_cmd(args: SandboxProfileArgs) -> AppResult<SandboxStatus> {
+    set_sandbox_profile(&args.profile)
+}
+
+#[tauri::command]
+fn get_privacy_config() -> PrivacyConfig {
+    load_privacy_config()
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TelemetryArgs {
+    enabled: bool,
+}
+
+#[tauri::command]
+fn set_telemetry_enabled_cmd(args: TelemetryArgs) -> AppResult<PrivacyConfig> {
+    set_telemetry_enabled(args.enabled)
+}
+
 // ── Memory & media (Phase G) ───────────────────────────────────────────────
 
 #[tauri::command]
@@ -875,6 +964,14 @@ pub fn run() {
             set_memory_enabled_cmd,
             get_local_media,
             list_recent_media_cmd,
+            get_auth_account,
+            grok_login_cmd,
+            grok_logout_cmd,
+            grok_doctor_cmd,
+            get_sandbox_status,
+            set_sandbox_profile_cmd,
+            get_privacy_config,
+            set_telemetry_enabled_cmd,
             get_agents_catalog,
             save_agent_def,
             delete_agent_def,

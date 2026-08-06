@@ -86,13 +86,52 @@ jobs:
         working-directory: apps/desktop
         run: pnpm install --frozen-lockfile
 
+      - name: Import Apple certificate (optional)
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          if [ -z "${APPLE_CERTIFICATE:-}" ]; then
+            echo "No APPLE_CERTIFICATE secret — building unsigned."
+            exit 0
+          fi
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          echo -n "$APPLE_CERTIFICATE" | base64 --decode -o "$CERTIFICATE_PATH"
+          security create-keychain -p "" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" "$KEYCHAIN_PATH"
+
       - name: Tauri build (app + dmg)
         working-directory: apps/desktop
-        # Unsigned CI builds are fine for GitHub Releases; notarize later with secrets.
         run: pnpm tauri build --bundles app,dmg
         env:
-          # Avoid failing when no Apple signing identity is present.
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           TAURI_SIGNING_PRIVATE_KEY: ""
+
+      - name: Notarize dmg (optional)
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          if [ -z "${APPLE_ID:-}" ] || [ -z "${APPLE_APP_SPECIFIC_PASSWORD:-}" ]; then
+            echo "Skipping notarization (secrets not set)."
+            exit 0
+          fi
+          shopt -s nullglob
+          for dmg in target/release/bundle/dmg/*.dmg; do
+            echo "Notarizing $dmg"
+            xcrun notarytool submit "$dmg" \
+              --apple-id "$APPLE_ID" \
+              --team-id "$APPLE_TEAM_ID" \
+              --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+              --wait
+            xcrun stapler staple "$dmg" || true
+          done
 
       - name: Collect artifacts
         run: |
@@ -143,6 +182,30 @@ jobs:
       - name: Tauri build (nsis + msi)
         working-directory: apps/desktop
         run: pnpm tauri build --bundles nsis,msi
+
+      - name: Sign Windows artifacts (optional)
+        shell: bash
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if [ -z "${WINDOWS_CERTIFICATE:-}" ]; then
+            echo "No WINDOWS_CERTIFICATE secret — leaving unsigned."
+            exit 0
+          fi
+          CERT="$RUNNER_TEMP/cert.pfx"
+          echo -n "$WINDOWS_CERTIFICATE" | base64 --decode > "$CERT"
+          # Prefer signtool if available (VS / Windows SDK).
+          SIGNTOOL=$(find "/c/Program Files (x86)/Windows Kits" -name signtool.exe 2>/dev/null | head -1 || true)
+          if [ -z "$SIGNTOOL" ]; then
+            echo "signtool.exe not found; skip signing."
+            exit 0
+          fi
+          for f in $(find target/release/bundle -type f \( -name '*.exe' -o -name '*.msi' \)); do
+            echo "Signing $f"
+            "$SIGNTOOL" sign -f "$CERT" -p "$WINDOWS_CERTIFICATE_PASSWORD" \
+              -fd SHA256 -tr http://timestamp.digicert.com -td SHA256 "$f" || true
+          done
 
       - name: Collect artifacts
         shell: bash

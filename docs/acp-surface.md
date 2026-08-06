@@ -104,6 +104,14 @@ Update this checklist as features land.
 - [x] Phase G: Config `[memory].enabled` toggle + session `/memory on|off`
 - [x] Phase G: Imagine gallery + `/imagine` / `/imagine-video`
 - [x] Phase G: Inline media in chat + prompt image attach (ACP image blocks)
+- [x] Phase H: Login (`grok login` OAuth/device) + logout
+- [x] Phase H: Privacy panel (auth retention meta + telemetry + `/privacy`)
+- [x] Phase H: Sandbox status + `[sandbox].profile` config
+- [x] Phase H: Permission Ask/Auto/Always + Doctor (`grok doctor --json`)
+- [x] Phase I: Unit tests (Rust + vitest) + optional live agent integration
+- [x] Phase I: Signing/notarization docs + optional CI secrets
+- [x] Phase I: In-app Help/Docs panel (`/docs`)
+- [x] Phase I: Modal a11y (focus trap, ARIA, Esc)
 
 ## Packaging (PR8)
 

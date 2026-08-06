@@ -72,6 +72,9 @@ interface AppState {
   memoryTab: "remember" | "browse" | "actions" | "imagine";
   /** Paths collected from chat / disk for the media gallery. */
   mediaGallery: MediaGalleryItem[];
+  accountOpen: boolean;
+  accountTab: "account" | "privacy" | "sandbox" | "doctor" | "safety";
+  helpOpen: boolean;
   signals: SessionSignals | null;
   /** Subagents for the active (or last loaded) parent session. */
   subagents: SubagentInfo[];
@@ -175,6 +178,11 @@ interface AppState {
   ) => void;
   setMemoryOpen: (v: boolean) => void;
   setMemoryTab: (t: "remember" | "browse" | "actions" | "imagine") => void;
+  setAccountOpen: (v: boolean) => void;
+  setAccountTab: (
+    t: "account" | "privacy" | "sandbox" | "doctor" | "safety",
+  ) => void;
+  setHelpOpen: (v: boolean) => void;
   addMediaGalleryItem: (item: Omit<MediaGalleryItem, "addedAt"> & { addedAt?: number }) => void;
   clearMediaGallery: () => void;
   upsertAutomationJob: (job: AutomationJob) => void;
@@ -368,6 +376,46 @@ const CLIENT_COMMANDS: SlashCommand[] = [
     source: "client",
   },
   {
+    name: "account",
+    description: "Account, privacy, sandbox & doctor",
+    source: "client",
+  },
+  {
+    name: "login",
+    description: "Sign in (browser OAuth or /login device)",
+    inputHint: "device?",
+    source: "client",
+  },
+  {
+    name: "logout",
+    description: "Sign out and clear credentials",
+    source: "client",
+  },
+  {
+    name: "privacy",
+    description: "Privacy panel (or agent /privacy)",
+    source: "client",
+  },
+  {
+    name: "sandbox",
+    description: "Sandbox profile status & config",
+    source: "client",
+  },
+  {
+    name: "doctor",
+    description: "Run grok doctor diagnostics",
+    inputHint: "fix?",
+    source: "client",
+  },
+  {
+    name: "docs",
+    description: "In-app help & docs (alias: /help, /howto)",
+    source: "client",
+  },
+  { name: "help", description: "Alias for /docs", source: "client" },
+  { name: "howto", description: "Alias for /docs", source: "client" },
+  { name: "guides", description: "Alias for /docs", source: "client" },
+  {
     name: "agents",
     description: "Agents & personas manager (alias: /config-agents)",
     source: "client",
@@ -546,6 +594,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   memoryOpen: false,
   memoryTab: "remember",
   mediaGallery: [],
+  accountOpen: false,
+  accountTab: "account",
+  helpOpen: false,
   signals: null,
   subagents: [],
   suppressHistoryUpdates: false,
@@ -815,6 +866,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   setAutomationTab: (automationTab) => set({ automationTab }),
   setMemoryOpen: (memoryOpen) => set({ memoryOpen }),
   setMemoryTab: (memoryTab) => set({ memoryTab }),
+  setAccountOpen: (accountOpen) => set({ accountOpen }),
+  setAccountTab: (accountTab) => set({ accountTab }),
+  setHelpOpen: (helpOpen) => set({ helpOpen }),
   addMediaGalleryItem: (item) => {
     const path = item.path.trim();
     if (!path) return;

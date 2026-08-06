@@ -1,7 +1,13 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import { authenticateAgent, connectAgent, getEnvironment, getGuiSettings } from "../../shared/api";
+import {
+  authenticateAgent,
+  connectAgent,
+  getEnvironment,
+  getGuiSettings,
+  sendPrompt,
+} from "../../shared/api";
 import { nextId, useAppStore } from "../../shared/store";
-import type { EnvironmentInfo } from "../../shared/types";
+import type { EnvironmentInfo, PermissionPolicy } from "../../shared/types";
 import { SessionList } from "./SessionList";
 
 async function pickDirectory(): Promise<string | null> {
@@ -31,9 +37,19 @@ export function Welcome({ env }: { env: EnvironmentInfo }) {
   const pushItem = useAppStore((s) => s.pushItem);
   const setView = useAppStore((s) => s.setView);
   const setEnv = useAppStore((s) => s.setEnv);
+  const setSessionMode = useAppStore((s) => s.setSessionMode);
+  const sessionMode = useAppStore((s) => s.sessionMode);
+  const setAccountOpen = useAppStore((s) => s.setAccountOpen);
+  const setAccountTab = useAppStore((s) => s.setAccountTab);
   const error = useAppStore((s) => s.error);
   const [connecting, setConnecting] = useState(false);
   const [authBusy, setAuthBusy] = useState(false);
+
+  const permissionPolicy: PermissionPolicy = alwaysApprove
+    ? "always"
+    : sessionMode === "auto"
+      ? "auto"
+      : "ask";
 
   // Restore last project + yolo from ~/.grok/gui/settings.json
   useEffect(() => {
@@ -80,6 +96,19 @@ export function Welcome({ env }: { env: EnvironmentInfo }) {
         kind: "system",
         text: `Connected · session ${session.sessionId.slice(0, 8)}… · ${session.cwd}`,
       });
+      // Apply Auto after connect when user selected it on the welcome screen.
+      if (!alwaysApprove && sessionMode === "auto") {
+        try {
+          await sendPrompt("/auto");
+          pushItem({
+            id: nextId(),
+            kind: "system",
+            text: "Permission → auto (/auto)",
+          });
+        } catch {
+          /* best-effort */
+        }
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setStatus("error");
@@ -212,46 +241,67 @@ export function Welcome({ env }: { env: EnvironmentInfo }) {
                 )}
               </span>
               {env.found ? (
-                <button
-                  type="button"
-                  style={{
-                    border: "1px solid #2a3140",
-                    background: "#1a1f2a",
-                    color: "#e8ecf4",
-                    borderRadius: 6,
-                    padding: "2px 8px",
-                    fontSize: 11,
-                    cursor: "pointer",
-                  }}
-                  disabled={authBusy}
-                  title="Call ACP authenticate with cached_token"
-                  onClick={() => {
-                    setAuthBusy(true);
-                    void authenticateAgent()
-                      .then(async (r) => {
-                        const meta = (r as { _meta?: { email?: string; auth_mode?: string } })
-                          ?._meta;
-                        const info = await getEnvironment();
-                        if (meta?.email || meta?.auth_mode) {
-                          setEnv({
-                            ...info,
-                            authPresent: true,
-                            authEmail: meta?.email ?? info.authEmail,
-                            authMode: meta?.auth_mode ?? info.authMode,
-                          });
-                        } else {
-                          setEnv(info);
-                        }
-                        setError(null);
-                      })
-                      .catch((e) => {
-                        setError(e instanceof Error ? e.message : String(e));
-                      })
-                      .finally(() => setAuthBusy(false));
-                  }}
-                >
-                  {authBusy ? "Checking…" : "Verify auth"}
-                </button>
+                <>
+                  <button
+                    type="button"
+                    style={{
+                      border: "1px solid #2a3140",
+                      background: "#1a1f2a",
+                      color: "#e8ecf4",
+                      borderRadius: 6,
+                      padding: "2px 8px",
+                      fontSize: 11,
+                      cursor: "pointer",
+                    }}
+                    disabled={authBusy}
+                    title="Call ACP authenticate with cached_token"
+                    onClick={() => {
+                      setAuthBusy(true);
+                      void authenticateAgent()
+                        .then(async (r) => {
+                          const meta = (r as { _meta?: { email?: string; auth_mode?: string } })
+                            ?._meta;
+                          const info = await getEnvironment();
+                          if (meta?.email || meta?.auth_mode) {
+                            setEnv({
+                              ...info,
+                              authPresent: true,
+                              authEmail: meta?.email ?? info.authEmail,
+                              authMode: meta?.auth_mode ?? info.authMode,
+                            });
+                          } else {
+                            setEnv(info);
+                          }
+                          setError(null);
+                        })
+                        .catch((e) => {
+                          setError(e instanceof Error ? e.message : String(e));
+                        })
+                        .finally(() => setAuthBusy(false));
+                    }}
+                  >
+                    {authBusy ? "Checking…" : "Verify"}
+                  </button>
+                  <button
+                    type="button"
+                    style={{
+                      border: "1px solid #2a3140",
+                      background: "#1a1f2a",
+                      color: "#7c9cff",
+                      borderRadius: 6,
+                      padding: "2px 8px",
+                      fontSize: 11,
+                      cursor: "pointer",
+                    }}
+                    onClick={() => {
+                      setAccountTab("account");
+                      setAccountOpen(true);
+                    }}
+                    title="Login, logout, privacy, sandbox, doctor"
+                  >
+                    Account…
+                  </button>
+                </>
               ) : null}
             </div>
           </div>
@@ -271,14 +321,87 @@ export function Welcome({ env }: { env: EnvironmentInfo }) {
             </button>
           </div>
 
-          <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16, fontSize: 13, color: "#8b95a8" }}>
-            <input
-              type="checkbox"
-              checked={alwaysApprove}
-              onChange={(e) => setAlwaysApprove(e.target.checked)}
-            />
-            Always approve tools (yolo) — skip permission prompts
-          </label>
+          <div style={{ marginTop: 16 }}>
+            <div
+              style={{
+                fontSize: 11,
+                color: "#8b95a8",
+                letterSpacing: "0.04em",
+                textTransform: "uppercase",
+                marginBottom: 8,
+              }}
+            >
+              Permission mode (default for connect)
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {(
+                [
+                  ["ask", "Ask"],
+                  ["auto", "Auto"],
+                  ["always", "Always"],
+                ] as const
+              ).map(([id, label]) => {
+                const active =
+                  id === "always"
+                    ? alwaysApprove
+                    : id === "auto"
+                      ? !alwaysApprove && sessionMode === "auto"
+                      : !alwaysApprove && sessionMode !== "auto";
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    style={{
+                      border: `1px solid ${
+                        active
+                          ? id === "always"
+                            ? "#f07178"
+                            : "#7c9cff"
+                          : "#2a3140"
+                      }`,
+                      background: "#1a1f2a",
+                      color: active
+                        ? id === "always"
+                          ? "#f07178"
+                          : "#7c9cff"
+                        : "#e8ecf4",
+                      borderRadius: 6,
+                      padding: "4px 10px",
+                      fontSize: 12,
+                      fontWeight: active ? 700 : 400,
+                      cursor: "pointer",
+                    }}
+                    onClick={() => {
+                      if (id === "always") {
+                        setAlwaysApprove(true);
+                        setSessionMode("yolo");
+                      } else if (id === "auto") {
+                        setAlwaysApprove(false);
+                        setSessionMode("auto");
+                      } else {
+                        setAlwaysApprove(false);
+                        setSessionMode("ask");
+                      }
+                    }}
+                    title={
+                      id === "always"
+                        ? "Skip tool permission prompts (yolo)"
+                        : id === "auto"
+                          ? "Agent auto mode after connect (use /auto)"
+                          : "Prompt for each tool (default)"
+                    }
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            <p style={{ margin: "8px 0 0", fontSize: 11, color: "#8b95a8" }}>
+              Ask is the safety default. Always sets connect-time yolo. Auto is
+              applied with agent <code>/auto</code> after the session is up
+              {permissionPolicy === "always" ? " · yolo armed" : ""}.
+            </p>
+          </div>
 
           <button
             type="button"

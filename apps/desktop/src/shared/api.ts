@@ -102,6 +102,51 @@ export function authenticateAgent(binaryOverride?: string | null) {
   });
 }
 
+export function getAuthAccount() {
+  return invoke<import("./types").AuthAccountInfo>("get_auth_account");
+}
+
+export function grokLogin(
+  mode: "oauth" | "device" = "oauth",
+  binaryOverride?: string | null,
+) {
+  return invoke<import("./types").CliActionResult>("grok_login_cmd", {
+    args: { mode, binaryOverride: binaryOverride ?? null },
+  });
+}
+
+export function grokLogout(binaryOverride?: string | null) {
+  return invoke<import("./types").CliActionResult>("grok_logout_cmd", {
+    args: { binaryOverride: binaryOverride ?? null },
+  });
+}
+
+export function grokDoctor(binaryOverride?: string | null) {
+  return invoke<import("./types").DoctorReport>("grok_doctor_cmd", {
+    args: { binaryOverride: binaryOverride ?? null },
+  });
+}
+
+export function getSandboxStatus() {
+  return invoke<import("./types").SandboxStatus>("get_sandbox_status");
+}
+
+export function setSandboxProfile(profile: string) {
+  return invoke<import("./types").SandboxStatus>("set_sandbox_profile_cmd", {
+    args: { profile },
+  });
+}
+
+export function getPrivacyConfig() {
+  return invoke<import("./types").PrivacyConfig>("get_privacy_config");
+}
+
+export function setTelemetryEnabled(enabled: boolean) {
+  return invoke<import("./types").PrivacyConfig>("set_telemetry_enabled_cmd", {
+    args: { enabled },
+  });
+}
+
 export function deleteDiskSession(sessionId: string) {
   return invoke<void>("delete_disk_session", {
     args: { sessionId },

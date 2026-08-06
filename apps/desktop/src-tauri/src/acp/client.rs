@@ -1545,7 +1545,7 @@ async fn handle_agent_request(
 }
 
 /// Parse Grok / ACP models payload from `session/new`, `session/load`, or `_x.ai/models/update`.
-fn parse_models_state(value: &Value) -> SessionModelsState {
+pub(crate) fn parse_models_state(value: &Value) -> SessionModelsState {
     let models_root = value.get("models").unwrap_or(value);
 
     let current_model_id = models_root
@@ -1645,8 +1645,11 @@ fn parse_models_state(value: &Value) -> SessionModelsState {
             .and_then(|m| m.reasoning_effort.clone())
     });
 
+    // Key is literally "x.ai/sessionConfig" (slash is part of the name, not a path).
     if let Some(opts) = value
-        .pointer("/_meta/x.ai/sessionConfig/options")
+        .get("_meta")
+        .and_then(|m| m.get("x.ai/sessionConfig"))
+        .and_then(|s| s.get("options"))
         .and_then(|v| v.as_array())
     {
         // If the current model has no effort list, harvest mode-category options.
@@ -1711,5 +1714,84 @@ fn parse_models_state(value: &Value) -> SessionModelsState {
         current_model_id,
         current_effort,
         available_models,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn parse_models_available_and_current() {
+        let v = json!({
+            "models": {
+                "currentModelId": "grok-4.5",
+                "availableModels": [
+                    {
+                        "modelId": "grok-4.5",
+                        "name": "Grok 4.5",
+                        "_meta": {
+                            "supportsReasoningEffort": true,
+                            "reasoningEffort": "medium",
+                            "reasoningEfforts": [
+                                { "id": "low", "label": "Low" },
+                                { "id": "medium", "label": "Medium", "default": true },
+                                { "id": "high", "label": "High" }
+                            ]
+                        }
+                    },
+                    { "id": "" },
+                    {
+                        "model_id": "legacy-id",
+                        "name": "Legacy"
+                    }
+                ]
+            }
+        });
+        let state = parse_models_state(&v);
+        assert_eq!(state.current_model_id.as_deref(), Some("grok-4.5"));
+        assert_eq!(state.available_models.len(), 2);
+        let m = &state.available_models[0];
+        assert!(m.supports_reasoning_effort);
+        assert_eq!(m.reasoning_effort.as_deref(), Some("medium"));
+        assert_eq!(m.reasoning_efforts.len(), 3);
+        assert_eq!(state.current_effort.as_deref(), Some("medium"));
+    }
+
+    #[test]
+    fn parse_models_session_config_modes() {
+        let v = json!({
+            "models": {
+                "currentModelId": "grok-4.5",
+                "availableModels": [{ "modelId": "grok-4.5", "name": "Grok" }]
+            },
+            "_meta": {
+                "x.ai/sessionConfig": {
+                    "options": [
+                        {
+                            "category": "mode",
+                            "id": "high",
+                            "label": "High",
+                            "selected": true
+                        },
+                        {
+                            "category": "mode",
+                            "id": "low",
+                            "label": "Low"
+                        }
+                    ]
+                }
+            }
+        });
+        let state = parse_models_state(&v);
+        assert_eq!(state.current_effort.as_deref(), Some("high"));
+        let m = state
+            .available_models
+            .iter()
+            .find(|m| m.model_id == "grok-4.5")
+            .expect("model");
+        assert!(m.supports_reasoning_effort);
+        assert_eq!(m.reasoning_efforts.len(), 2);
     }
 }

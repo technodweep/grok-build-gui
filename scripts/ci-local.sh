@@ -28,6 +28,9 @@ echo "==> Frontend typecheck"
 pnpm install --dir apps/desktop
 pnpm --dir apps/desktop exec tsc --noEmit
 
+echo "==> Frontend unit tests"
+pnpm --dir apps/desktop test
+
 echo "==> Frontend build"
 pnpm --dir apps/desktop build
 
@@ -36,6 +39,13 @@ cargo fmt -p grok-build-gui -- --check
 
 echo "==> cargo test"
 cargo test -p grok-build-gui
+
+if [[ "${GROK_GUI_INTEGRATION:-}" == "1" || "${GROK_GUI_INTEGRATION:-}" == "true" ]]; then
+  echo "==> Live agent integration tests"
+  cargo test -p grok-build-gui --test integration_agent -- --nocapture
+else
+  echo "==> Skipping live agent integration (set GROK_GUI_INTEGRATION=1 to enable)"
+fi
 
 echo "==> cargo clippy"
 cargo clippy -p grok-build-gui --all-targets -- -D warnings

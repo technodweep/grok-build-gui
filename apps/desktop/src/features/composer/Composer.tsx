@@ -40,6 +40,7 @@ export function Composer() {
   const setDraft = useAppStore((s) => s.setDraft);
   const setBusy = useAppStore((s) => s.setBusy);
   const setError = useAppStore((s) => s.setError);
+  const setEnv = useAppStore((s) => s.setEnv);
   const pushItem = useAppStore((s) => s.pushItem);
   const session = useAppStore((s) => s.session);
   const slashCommands = useAppStore((s) => s.slashCommands);
@@ -95,6 +96,9 @@ export function Composer() {
   const upsertAutomationJob = useAppStore((s) => s.upsertAutomationJob);
   const setMemoryOpen = useAppStore((s) => s.setMemoryOpen);
   const setMemoryTab = useAppStore((s) => s.setMemoryTab);
+  const setAccountOpen = useAppStore((s) => s.setAccountOpen);
+  const setAccountTab = useAppStore((s) => s.setAccountTab);
+  const setHelpOpen = useAppStore((s) => s.setHelpOpen);
   const addMediaGalleryItem = useAppStore((s) => s.addMediaGalleryItem);
 
   const [sending, setSending] = useState(false);
@@ -567,6 +571,102 @@ export function Composer() {
           await dispatchSend(`/imagine-video ${argTrim}`, []);
         } catch (e) {
           setError(e instanceof Error ? e.message : String(e));
+        }
+        break;
+      }
+      case "account": {
+        setAccountTab("account");
+        setAccountOpen(true);
+        break;
+      }
+      case "login": {
+        setAccountTab("account");
+        setAccountOpen(true);
+        // Optional: kick off login immediately when arg is device/oauth
+        if (argTrim) {
+          const mode =
+            /device/i.test(argTrim) ? ("device" as const) : ("oauth" as const);
+          try {
+            const { grokLogin, getEnvironment } = await import("../../shared/api");
+            pushItem({
+              id: nextId(),
+              kind: "system",
+              text: `Login (${mode})… complete in browser or with the device code.`,
+            });
+            const r = await grokLogin(mode);
+            pushItem({
+              id: nextId(),
+              kind: "system",
+              text: r.summary,
+              level: r.ok ? "info" : "error",
+            });
+            const info = await getEnvironment();
+            setEnv(info);
+          } catch (e) {
+            setError(e instanceof Error ? e.message : String(e));
+          }
+        }
+        break;
+      }
+      case "logout": {
+        if (!window.confirm("Sign out and clear Grok credentials?")) break;
+        try {
+          const { grokLogout, getEnvironment } = await import("../../shared/api");
+          const r = await grokLogout();
+          pushItem({
+            id: nextId(),
+            kind: "system",
+            text: r.summary,
+            level: r.ok ? "info" : "error",
+          });
+          const info = await getEnvironment();
+          setEnv(info);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e));
+        }
+        break;
+      }
+      case "privacy": {
+        setAccountTab("privacy");
+        setAccountOpen(true);
+        if (ready) {
+          try {
+            await dispatchSend("/privacy", []);
+          } catch (e) {
+            setError(e instanceof Error ? e.message : String(e));
+          }
+        }
+        break;
+      }
+      case "sandbox": {
+        setAccountTab("sandbox");
+        setAccountOpen(true);
+        break;
+      }
+      case "doctor": {
+        setAccountTab("doctor");
+        setAccountOpen(true);
+        if (argTrim.toLowerCase() === "fix" && ready) {
+          try {
+            await dispatchSend("/doctor fix", []);
+          } catch (e) {
+            setError(e instanceof Error ? e.message : String(e));
+          }
+        }
+        break;
+      }
+      case "docs":
+      case "help":
+      case "howto":
+      case "guides": {
+        setHelpOpen(true);
+        // Also forward bare agent /docs when online docs requested.
+        if (ready && (argTrim === "web" || argTrim.startsWith("http"))) {
+          try {
+            await dispatchSend(argTrim ? `/docs ${argTrim}` : "/docs web", []);
+          } catch (e) {
+            setError(e instanceof Error ? e.message : String(e));
+          }
         }
         break;
       }

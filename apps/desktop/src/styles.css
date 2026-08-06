@@ -164,6 +164,22 @@ body {
   padding: 20px;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
 }
+.gb-modal:focus {
+  outline: none;
+}
+.gb-modal:focus-visible {
+  outline: 2px solid var(--gb-accent);
+  outline-offset: 2px;
+}
+/* Visible keyboard focus for controls inside modals */
+.gb-modal button:focus-visible,
+.gb-modal a:focus-visible,
+.gb-modal input:focus-visible,
+.gb-modal select:focus-visible,
+.gb-modal textarea:focus-visible {
+  outline: 2px solid var(--gb-accent);
+  outline-offset: 2px;
+}
 
 /* Compact density (C5) */
 [data-density="compact"] .gb-scrollback {

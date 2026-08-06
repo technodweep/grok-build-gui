@@ -70,6 +70,9 @@ export function StatusBar() {
   const setAgentsOpen = useAppStore((s) => s.setAgentsOpen);
   const setAutomationOpen = useAppStore((s) => s.setAutomationOpen);
   const setMemoryOpen = useAppStore((s) => s.setMemoryOpen);
+  const setAccountOpen = useAppStore((s) => s.setAccountOpen);
+  const setAccountTab = useAppStore((s) => s.setAccountTab);
+  const setHelpOpen = useAppStore((s) => s.setHelpOpen);
   const terminals = useAppStore((s) => s.terminals);
   const automationJobs = useAppStore((s) => s.automationJobs);
   const rewindTurns = useAppStore((s) => s.rewindTurns);
@@ -335,8 +338,13 @@ export function StatusBar() {
           <button
             type="button"
             onClick={cycleMode}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setAccountTab("safety");
+              setAccountOpen(true);
+            }}
             disabled={status !== "ready"}
-            title="Cycle mode: Ask · Auto · Plan · Yolo (TUI Shift+Tab). Click to advance."
+            title="Cycle mode: Ask · Auto · Plan · Yolo. Right-click → permission three-way (Ask/Auto/Always)."
             style={{
               fontSize: 11,
               fontWeight: 600,
@@ -490,6 +498,14 @@ export function StatusBar() {
             Term{terminals.length ? ` (${terminals.length})` : ""}
           </button>
         ) : null}
+        <button
+          type="button"
+          style={btn}
+          onClick={() => setHelpOpen(true)}
+          title="Help & docs (/docs, /help)"
+        >
+          Help
+        </button>
         <button type="button" style={btn} onClick={() => setShortcutsOpen(true)} title="Shortcuts (Ctrl+/)">
           ?
         </button>
@@ -516,6 +532,14 @@ export function StatusBar() {
           title="Memory & media — remember, browse, flush/dream, imagine (/memory)"
         >
           Memory
+        </button>
+        <button
+          type="button"
+          style={btn}
+          onClick={() => setAccountOpen(true)}
+          title="Account & safety — login, privacy, sandbox, doctor (/account)"
+        >
+          Account
         </button>
         <button type="button" style={btn} onClick={() => setSettingsOpen(true)} title="Settings (Ctrl+,)">
           Settings

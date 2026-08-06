@@ -130,7 +130,7 @@
 | Account `/usage` billing | **Partial** | Usage tab + agent `/usage` |
 | Background tasks panel | **Done** | Automation hub + terminal kill/release |
 | Workflows dashboard | **Done** | Launch/control + `/workflows` |
-| Doctor / health | **Gap** | `/doctor` as agent run + structured panel |
+| Doctor / health | **Done** | `grok doctor --json` panel + `/doctor` |
 
 ### 4.5 Terminals
 
@@ -197,9 +197,9 @@
 |---------|--------|------------------|
 | Detect local auth | **Done** | |
 | Verify cached token | **Done** | `authenticate` |
-| Login (browser OIDC) | **Gap** | Follow agent auth methods / open browser |
-| Logout | **Gap** | ACP logout if advertised |
-| Privacy / data settings | **Gap** | |
+| Login (browser OIDC) | **Done** | `grok login` OAuth + device code from GUI |
+| Logout | **Done** | `grok logout` + env refresh |
+| Privacy / data settings | **Done** | Auth meta + telemetry + agent `/privacy` |
 
 ### 4.12 Configuration & theming
 
@@ -210,7 +210,7 @@
 | Binary override | **Done** | |
 | Full TUI theme packs | **N/A→Remap** | Map to desktop theme system |
 | Project rules / AGENTS.md editor | **Gap** | Open/edit files; not reimplement engine |
-| Sandbox profile UI | **Gap** | Surface config + status |
+| Sandbox profile UI | **Done** | Account hub · Sandbox tab |
 | Custom models UI | **Gap** | Edit config or models section |
 
 ### 4.13 Desktop packaging & quality
@@ -219,8 +219,8 @@
 |---------|--------|------------------|
 | Linux packages | **Done** | deb / AppImage / rpm |
 | macOS / Windows CI matrix | **Done** | Unsigned CI builds |
-| Code signing / notarization | **Gap** | Release blockers for public distro |
-| Integration tests vs live CLI | **Gap** | `GROK_GUI_INTEGRATION=1` |
+| Code signing / notarization | **Done** | Docs + optional CI secrets (unsigned by default) |
+| Integration tests vs live CLI | **Done** | `GROK_GUI_INTEGRATION=1` + unit tests |
 | Unit tests (pure Rust) | **Partial** | Expand coverage |
 | Architecture docs refresh | **Partial** | Some MVP notes outdated |
 
@@ -403,6 +403,15 @@ Build in vertical slices that stay shippable. Each phase ends with: checklist up
 | H5 | **Permission mode Auto** | Full three-way Ask / Auto / Always |
 | H6 | **Doctor panel** | Run diagnostics; structured report |
 
+**Phase H status (2026-08-05):** Implemented.
+- Account & safety hub (`/account`, status bar **Account**): login, logout, verify, privacy, sandbox, doctor, permissions
+- Login: `grok login --oauth` / `--device-auth` (blocking, status + URLs/codes surfaced)
+- Logout: `grok logout`; privacy from auth.json (retention opt-out, ZDR if present) + telemetry config toggle + agent `/privacy`
+- Sandbox: effective profile (env/config), save `[sandbox].profile`, notes on reconnect
+- Permission three-way Ask/Auto/Always (Welcome + Account Safety tab; status bar cycle + right-click)
+- Doctor: `grok doctor --json` structured findings panel
+- Client slash: `/login`, `/logout`, `/privacy`, `/sandbox`, `/doctor`, `/account`
+
 **Exit criteria:** Onboarding and account management work fully in-app.
 
 ---
@@ -419,6 +428,15 @@ Build in vertical slices that stay shippable. Each phase ends with: checklist up
 | I6 | **Docs refresh** | architecture.md, user-facing help inside app (`/docs` → panel) |
 | I7 | **Accessibility** | Focus traps, ARIA on modals, keyboard paths |
 | I8 | **i18n (optional)** | Not required for v1 parity |
+
+**Phase I status (2026-08-05):** Implemented (I8 skipped for v1).
+- Integration: `tests/integration_agent.rs` gated by `GROK_GUI_INTEGRATION=1`
+- Unit: Rust models/session + vitest for export, text, mediaPaths, toolContent, streamBatch, contextEstimate
+- Signing: packaging.md secrets tables; release.yml optional Apple/Windows sign+notarize when secrets present
+- Auto-update: documented path only (not enabled)
+- Help panel: `/docs` · `/help` · status bar **Help**; architecture.md refresh
+- A11y: `modalA11y` focus trap + Esc + ARIA; ModalShell; Settings/Account/Help wired
+- CI: frontend `pnpm test`; `ci-local.sh` runs unit + optional integration
 
 **Exit criteria:** Release-ready, testable, distributable builds.
 

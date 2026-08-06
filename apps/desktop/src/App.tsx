@@ -23,6 +23,8 @@ import { ExtensionsModal } from "./features/extensions/ExtensionsModal";
 import { AgentsModal } from "./features/agents/AgentsModal";
 import { AutomationModal } from "./features/automation/AutomationModal";
 import { MemoryMediaModal } from "./features/memory/MemoryMediaModal";
+import { AccountSafetyModal } from "./features/account/AccountSafetyModal";
+import { HelpDocsPanel } from "./features/help/HelpDocsPanel";
 import { Welcome } from "./features/sessions/Welcome";
 import { extractMediaPaths, mediaKind } from "./shared/mediaPaths";
 import {
@@ -722,6 +724,8 @@ export default function App() {
       <AgentsModal />
       <AutomationModal />
       <MemoryMediaModal />
+      <AccountSafetyModal />
+      <HelpDocsPanel />
       <HistoryPanel />
       <ShortcutsModal />
       <ContextPanel />

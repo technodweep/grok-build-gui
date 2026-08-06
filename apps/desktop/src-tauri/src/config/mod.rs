@@ -3,11 +3,17 @@ use std::path::{Path, PathBuf};
 
 use crate::error::{AppError, AppResult};
 
+pub mod account;
 pub mod agents;
 pub mod extensions;
 pub mod grok_config;
 pub mod memory;
 pub mod settings;
+pub use account::{
+    load_auth_account, load_privacy_config, load_sandbox_status, run_doctor, run_login, run_logout,
+    set_sandbox_profile, set_telemetry_enabled, AuthAccountInfo, CliActionResult, DoctorReport,
+    LoginMode, PrivacyConfig, SandboxStatus,
+};
 pub use agents::{
     delete_user_agent, delete_user_persona, load_agents_catalog, save_user_agent, save_user_persona,
     AgentDef, AgentsCatalog, PersonaDef,

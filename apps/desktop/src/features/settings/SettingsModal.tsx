@@ -1,10 +1,11 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   getEnvironment,
   getGrokConfigOverview,
   getGuiSettings,
   setGuiSettings,
 } from "../../shared/api";
+import { activateModalA11y } from "../../shared/modalA11y";
 import { useAppStore } from "../../shared/store";
 import { applyTheme, THEME_OPTIONS, type ThemeId } from "../../shared/theme";
 import type { GrokConfigOverview, GuiSettings } from "../../shared/types";
@@ -40,6 +41,12 @@ export function SettingsModal() {
   const [grok, setGrok] = useState<GrokConfigOverview | null>(null);
   const [grokLoading, setGrokLoading] = useState(false);
   const [grokErr, setGrokErr] = useState<string | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open || !panelRef.current) return;
+    return activateModalA11y(panelRef.current, { onClose: () => setOpen(false) });
+  }, [open, setOpen]);
 
   useEffect(() => {
     if (!open) return;
@@ -117,13 +124,14 @@ export function SettingsModal() {
   return (
     <div className="gb-modal-backdrop" onClick={() => setOpen(false)}>
       <div
+        ref={panelRef}
         className="gb-modal"
         onClick={(e) => e.stopPropagation()}
         style={{ maxWidth: 560, maxHeight: "85vh", display: "flex", flexDirection: "column" }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ margin: 0, fontSize: 18 }}>Settings</h2>
-          <button type="button" style={ghost} onClick={() => setOpen(false)}>
+          <button type="button" style={ghost} onClick={() => setOpen(false)} aria-label="Close dialog">
             Close
           </button>
         </div>

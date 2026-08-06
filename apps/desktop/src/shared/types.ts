@@ -10,6 +10,75 @@ export interface EnvironmentInfo {
   authMode?: string | null;
 }
 
+/** Privacy-safe account meta from ~/.grok/auth.json (no tokens). */
+export interface AuthAccountInfo {
+  present: boolean;
+  email?: string | null;
+  authMode?: string | null;
+  firstName?: string | null;
+  userId?: string | null;
+  teamId?: string | null;
+  principalType?: string | null;
+  expiresAt?: string | null;
+  createTime?: string | null;
+  oidcIssuer?: string | null;
+  codingDataRetentionOptOut?: boolean | null;
+  zeroDataRetention?: boolean | null;
+  privacyNote?: string | null;
+  apiKeyEnv: boolean;
+  authPath: string;
+}
+
+export interface CliActionResult {
+  ok: boolean;
+  exitCode?: number | null;
+  stdout: string;
+  stderr: string;
+  urls: string[];
+  deviceCode?: string | null;
+  summary: string;
+}
+
+export interface DoctorFinding {
+  id: string;
+  disposition: string;
+  message: string;
+  note?: string | null;
+  remediation?: string | null;
+}
+
+export interface DoctorReport {
+  ok: boolean;
+  raw: unknown;
+  findings: DoctorFinding[];
+  issues: number;
+  recommendations: number;
+  summary: string;
+  stderr: string;
+}
+
+export interface SandboxStatus {
+  effectiveProfile: string;
+  configProfile?: string | null;
+  envProfile?: string | null;
+  configPath: string;
+  sandboxTomlPath: string;
+  sandboxTomlExists: boolean;
+  customProfiles: string[];
+  builtinProfiles: string[];
+  clientFsSandbox: boolean;
+  notes: string[];
+}
+
+export interface PrivacyConfig {
+  telemetryEnabled?: boolean | null;
+  traceUpload?: boolean | null;
+  configPath: string;
+}
+
+/** Permission policy for tool prompts (excludes plan mode). */
+export type PermissionPolicy = "ask" | "auto" | "always";
+
 /** ACP `session/list` entry (may lack disk path). */
 export interface AgentSessionInfo {
   sessionId: string;
