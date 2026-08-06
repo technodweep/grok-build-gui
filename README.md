@@ -6,25 +6,21 @@ The CLI agent remains the brain (auth, tools, MCP, sessions). This app is the vi
 
 ## Features
 
-- Chat with streaming replies, thinking, tool cards, and plans
-- Interactive permission prompts (or yolo mode)
-- Session browser: resume / rename / delete from `~/.grok/sessions`
-- Composer: `/` commands, `@` file attach, prompt queue
-- Multi-agent dashboard: dispatch, pin, switch, stop
-- Agent terminal host (ACP `terminal/*`) with live output panel
-- Model & reasoning-effort picker (`session/set_model` / `session/set_mode`)
-- Reconnect after agent crash (resume or new session; scrollback kept)
-- Colored diffs, drag-and-drop file attach, `/rename` / `/delete`
-- Prompt history (↑/↓), export to file, disconnect notifications
-- Virtualized scrollback, stream batching, live turn usage
-- ACP session/list merged into session browser; auth verify on welcome
-- Settings: Grok config overview (MCP, skills, open `~/.grok/config.toml`)
-- Find in scrollback (Ctrl+F), multiline mode, sticky plan strip
-- Themes (dark / dim / light), settings, shortcuts cheatsheet
+- Chat with streaming replies, thinking, tool cards, plans, and elicitation
+- Permissions (Ask / Auto / Always), plan mode, compact / rewind / fork
+- Sessions: resume / rename / delete; multi-agent dashboard
+- Composer: `/` commands, `@` files, image attach, queue, fuzzy history
+- Hubs: Extensions (MCP/skills/plugins), Agents, Tasks, Memory, Account, Rules
+- Agent terminals (live panel + tool-card embed), workflows / loops / goals
+- Memory (`/remember`, browse, flush/dream) and media (`/imagine` gallery)
+- Project AGENTS.md editor + custom model endpoints in `config.toml`
+- Context & usage, find-in-scrollback, raw markdown, themes
+- Login / logout / doctor / sandbox profile without the TUI
 
 Docs:
 
-- **[Full feature parity plan](docs/full-parity-plan.md)** — everything Grok Build can do, gap analysis, phases A–I
+- **[Changelog](CHANGELOG.md)** — v0.1.0 notes
+- **[Full feature parity plan](docs/full-parity-plan.md)** — phases A–I inventory
 - [Architecture](docs/architecture.md)
 - [Shipped ACP surface checklist](docs/acp-surface.md)
 - [Packaging](docs/packaging.md)
