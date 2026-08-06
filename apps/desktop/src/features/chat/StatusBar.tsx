@@ -69,6 +69,7 @@ export function StatusBar() {
   const setExtensionsOpen = useAppStore((s) => s.setExtensionsOpen);
   const setAgentsOpen = useAppStore((s) => s.setAgentsOpen);
   const setAutomationOpen = useAppStore((s) => s.setAutomationOpen);
+  const setMemoryOpen = useAppStore((s) => s.setMemoryOpen);
   const terminals = useAppStore((s) => s.terminals);
   const automationJobs = useAppStore((s) => s.automationJobs);
   const rewindTurns = useAppStore((s) => s.rewindTurns);
@@ -507,6 +508,14 @@ export function StatusBar() {
           title="Agents & personas (/agents, /personas)"
         >
           Agents
+        </button>
+        <button
+          type="button"
+          style={btn}
+          onClick={() => setMemoryOpen(true)}
+          title="Memory & media — remember, browse, flush/dream, imagine (/memory)"
+        >
+          Memory
         </button>
         <button type="button" style={btn} onClick={() => setSettingsOpen(true)} title="Settings (Ctrl+,)">
           Settings

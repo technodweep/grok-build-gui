@@ -22,7 +22,9 @@ import { HistoryPanel } from "./features/composer/HistoryPanel";
 import { ExtensionsModal } from "./features/extensions/ExtensionsModal";
 import { AgentsModal } from "./features/agents/AgentsModal";
 import { AutomationModal } from "./features/automation/AutomationModal";
+import { MemoryMediaModal } from "./features/memory/MemoryMediaModal";
 import { Welcome } from "./features/sessions/Welcome";
+import { extractMediaPaths, mediaKind } from "./shared/mediaPaths";
 import {
   getEnvironment,
   getGuiSettings,
@@ -379,13 +381,38 @@ export default function App() {
 
           if (kind === "agent_message_chunk") {
             const text = contentText(update);
-            if (text) appendAgentText(text, sid);
+            if (text) {
+              appendAgentText(text, sid);
+              // Phase G: harvest media paths for gallery / inline display.
+              for (const p of extractMediaPaths(text)) {
+                const k = mediaKind(p);
+                if (k === "image" || k === "video") {
+                  useAppStore.getState().addMediaGalleryItem({
+                    path: p,
+                    kind: k,
+                    source: "chat",
+                  });
+                }
+              }
+            }
           } else if (kind === "agent_thought_chunk") {
             const text = contentText(update);
             if (text) appendThoughtText(text, sid);
           } else if (kind === "tool_call" || kind === "tool_call_update") {
             const toolCallId = String(update.toolCallId ?? "unknown");
             const fromBlocks = toolOutputFromUpdate(update);
+            if (fromBlocks.output) {
+              for (const p of extractMediaPaths(fromBlocks.output)) {
+                const k = mediaKind(p);
+                if (k === "image" || k === "video") {
+                  useAppStore.getState().addMediaGalleryItem({
+                    path: p,
+                    kind: k,
+                    source: "chat",
+                  });
+                }
+              }
+            }
             upsertTool(
               {
                 toolCallId,
@@ -694,6 +721,7 @@ export default function App() {
       <ExtensionsModal />
       <AgentsModal />
       <AutomationModal />
+      <MemoryMediaModal />
       <HistoryPanel />
       <ShortcutsModal />
       <ContextPanel />

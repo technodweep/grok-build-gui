@@ -1,11 +1,39 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
+import { LocalMedia } from "../../shared/LocalMedia";
 import { MarkdownBody } from "../../shared/MarkdownBody";
+import { extractMediaPaths, mediaKind } from "../../shared/mediaPaths";
 import { useAppStore } from "../../shared/store";
 import { asDisplayText } from "../../shared/text";
 import { blockDisplayText } from "../../shared/toolContent";
 import type { ScrollItem, ToolContentBlock } from "../../shared/types";
 import { DiffView } from "./DiffView";
+
+function AgentMediaExtras({ text }: { text: string }) {
+  const paths = useMemo(() => extractMediaPaths(text), [text]);
+  // Skip paths already inlined as markdown images (MarkdownBody handles those).
+  const bare = useMemo(() => {
+    const mdLinked = new Set(
+      Array.from(text.matchAll(/!\[[^\]]*\]\(([^)\s]+)\)/g)).map((m) => m[1]),
+    );
+    return paths.filter((p) => !mdLinked.has(p) && mediaKind(p) !== "other");
+  }, [paths, text]);
+  if (bare.length === 0) return null;
+  return (
+    <div
+      style={{
+        marginTop: 10,
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+      }}
+    >
+      {bare.map((p) => (
+        <LocalMedia key={p} path={p} maxHeight={280} />
+      ))}
+    </div>
+  );
+}
 
 function statusColor(status: string): string {
   if (status === "completed" || status === "success") return "#3dd68c";
@@ -58,26 +86,70 @@ function ContentBlocks({ blocks }: { blocks: ToolContentBlock[] }) {
             </div>
           );
         }
+        if (t === "image") {
+          const data = typeof b.data === "string" ? b.data : undefined;
+          const mime =
+            typeof b.mimeType === "string"
+              ? b.mimeType
+              : typeof (b as { mime_type?: string }).mime_type === "string"
+                ? (b as { mime_type: string }).mime_type
+                : "image/png";
+          const uri =
+            typeof b.uri === "string"
+              ? b.uri
+              : typeof b.path === "string"
+                ? b.path
+                : undefined;
+          if (data) {
+            const src = data.startsWith("data:")
+              ? data
+              : `data:${mime};base64,${data}`;
+            return (
+              <img
+                key={i}
+                src={src}
+                alt={uri || "image"}
+                style={{
+                  maxWidth: "100%",
+                  maxHeight: 280,
+                  borderRadius: 8,
+                  border: "1px solid #2a3140",
+                }}
+              />
+            );
+          }
+          if (uri) {
+            return <LocalMedia key={i} path={uri.replace(/^file:\/\//, "")} maxHeight={280} />;
+          }
+        }
         const text = blockDisplayText(b);
         if (text) {
+          // Surface bare media paths from tool output.
+          const paths = extractMediaPaths(text);
           return (
-            <pre
-              key={i}
-              style={{
-                margin: 0,
-                maxHeight: 160,
-                overflow: "auto",
-                whiteSpace: "pre-wrap",
-                fontSize: 11,
-                color: "#8b95a8",
-                background: "#0c0e12",
-                borderRadius: 8,
-                padding: 8,
-                border: "1px solid #2a3140",
-              }}
-            >
-              {text}
-            </pre>
+            <div key={i}>
+              <pre
+                style={{
+                  margin: 0,
+                  maxHeight: 160,
+                  overflow: "auto",
+                  whiteSpace: "pre-wrap",
+                  fontSize: 11,
+                  color: "#8b95a8",
+                  background: "#0c0e12",
+                  borderRadius: 8,
+                  padding: 8,
+                  border: "1px solid #2a3140",
+                }}
+              >
+                {text}
+              </pre>
+              {paths.map((p) => (
+                <div key={p} style={{ marginTop: 8 }}>
+                  <LocalMedia path={p} maxHeight={220} />
+                </div>
+              ))}
+            </div>
           );
         }
         return null;
@@ -182,6 +254,7 @@ function ItemView({ item }: { item: ScrollItem }) {
           <LabelRow label="Grok" color="var(--gb-accent)" ts={item.ts} showTs={showTimestamps} />
           <div className="prose-chat" style={{ fontSize }}>
             <MarkdownBody text={asDisplayText(item.text)} />
+            <AgentMediaExtras text={asDisplayText(item.text)} />
           </div>
         </div>
       );

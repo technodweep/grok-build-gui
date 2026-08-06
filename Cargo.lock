@@ -1344,6 +1344,7 @@ dependencies = [
 name = "grok-build-gui"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "dirs",
  "parking_lot",
  "serde",

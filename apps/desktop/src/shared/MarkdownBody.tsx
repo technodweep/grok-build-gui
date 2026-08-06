@@ -2,6 +2,13 @@ import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { highlightToHtml } from "./highlight";
+import { LocalMedia } from "./LocalMedia";
+
+function isLocalMediaSrc(src?: string): boolean {
+  if (!src) return false;
+  if (/^https?:\/\//i.test(src) || src.startsWith("data:")) return false;
+  return /\.(png|jpe?g|gif|webp|bmp|mp4|webm|mov)(\?|$)/i.test(src);
+}
 
 const components: Components = {
   code({ className, children, ...props }) {
@@ -28,6 +35,40 @@ const components: Components = {
   },
   pre({ children }) {
     return <pre className="hljs-pre">{children}</pre>;
+  },
+  img({ src, alt }) {
+    if (src && isLocalMediaSrc(src)) {
+      return (
+        <span style={{ display: "block", margin: "8px 0" }}>
+          <LocalMedia path={src} maxHeight={360} />
+          {alt ? (
+            <span
+              style={{
+                display: "block",
+                fontSize: 11,
+                color: "var(--gb-ink-muted)",
+                marginTop: 4,
+              }}
+            >
+              {alt}
+            </span>
+          ) : null}
+        </span>
+      );
+    }
+    if (!src) return null;
+    return (
+      <img
+        src={src}
+        alt={alt ?? ""}
+        style={{
+          maxWidth: "100%",
+          maxHeight: 360,
+          borderRadius: 10,
+          border: "1px solid var(--gb-border)",
+        }}
+      />
+    );
   },
 };
 

@@ -252,6 +252,48 @@ export function pluginSetEnabled(name: string, enabled: boolean) {
   });
 }
 
+export function getMemoryCatalog() {
+  return invoke<import("./types").MemoryCatalog>("get_memory_catalog");
+}
+
+export function getMemoryFile(path: string, maxChars?: number) {
+  return invoke<import("./types").MemoryFileContent>("get_memory_file", {
+    args: { path, maxChars: maxChars ?? null },
+  });
+}
+
+export function deleteMemoryFile(path: string) {
+  return invoke<void>("delete_memory_file_cmd", {
+    args: { path },
+  });
+}
+
+export function setMemoryEnabled(enabled: boolean) {
+  return invoke<boolean>("set_memory_enabled_cmd", {
+    args: { enabled },
+  });
+}
+
+export function getLocalMedia(
+  path: string,
+  projectCwd?: string | null,
+  maxBytes?: number,
+) {
+  return invoke<import("./types").LocalMediaData>("get_local_media", {
+    args: {
+      path,
+      projectCwd: projectCwd ?? null,
+      maxBytes: maxBytes ?? null,
+    },
+  });
+}
+
+export function listRecentMedia(projectCwd?: string | null, limit = 24) {
+  return invoke<import("./types").MemoryFileEntry[]>("list_recent_media_cmd", {
+    args: { projectCwd: projectCwd ?? null, limit },
+  });
+}
+
 export function listLiveSessions() {
   return invoke<LiveSession[]>("list_live_sessions");
 }

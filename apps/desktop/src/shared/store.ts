@@ -7,6 +7,7 @@ import type {
   ElicitationRequest,
   EnvironmentInfo,
   LiveSession,
+  MediaGalleryItem,
   PermissionRequest,
   PlanEntry,
   PlanModeState,
@@ -67,6 +68,10 @@ interface AppState {
   automationTab: "tasks" | "loops" | "goals" | "workflows" | "research";
   /** GUI-tracked automation jobs (loops/goals/workflows launched from UI). */
   automationJobs: AutomationJob[];
+  memoryOpen: boolean;
+  memoryTab: "remember" | "browse" | "actions" | "imagine";
+  /** Paths collected from chat / disk for the media gallery. */
+  mediaGallery: MediaGalleryItem[];
   signals: SessionSignals | null;
   /** Subagents for the active (or last loaded) parent session. */
   subagents: SubagentInfo[];
@@ -168,6 +173,10 @@ interface AppState {
   setAutomationTab: (
     t: "tasks" | "loops" | "goals" | "workflows" | "research",
   ) => void;
+  setMemoryOpen: (v: boolean) => void;
+  setMemoryTab: (t: "remember" | "browse" | "actions" | "imagine") => void;
+  addMediaGalleryItem: (item: Omit<MediaGalleryItem, "addedAt"> & { addedAt?: number }) => void;
+  clearMediaGallery: () => void;
   upsertAutomationJob: (job: AutomationJob) => void;
   updateAutomationJob: (
     id: string,
@@ -321,6 +330,41 @@ const CLIENT_COMMANDS: SlashCommand[] = [
     name: "deep-research",
     description: "Start deep research workflow",
     inputHint: "query",
+    source: "client",
+  },
+  {
+    name: "memory",
+    description: "Memory browser (or /memory on|off)",
+    inputHint: "on|off?",
+    source: "client",
+  },
+  { name: "mem", description: "Alias for /memory", source: "client" },
+  {
+    name: "remember",
+    description: "Save a note to memory",
+    inputHint: "note",
+    source: "client",
+  },
+  {
+    name: "flush",
+    description: "Flush session knowledge to memory (agent)",
+    source: "client",
+  },
+  {
+    name: "dream",
+    description: "Consolidate memory topics (agent)",
+    source: "client",
+  },
+  {
+    name: "imagine",
+    description: "Generate an image (agent /imagine)",
+    inputHint: "description",
+    source: "client",
+  },
+  {
+    name: "imagine-video",
+    description: "Generate a video (agent /imagine-video)",
+    inputHint: "description",
     source: "client",
   },
   {
@@ -499,6 +543,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   automationOpen: false,
   automationTab: "tasks",
   automationJobs: [],
+  memoryOpen: false,
+  memoryTab: "remember",
+  mediaGallery: [],
   signals: null,
   subagents: [],
   suppressHistoryUpdates: false,
@@ -766,6 +813,23 @@ export const useAppStore = create<AppState>((set, get) => ({
   setAgentsTab: (agentsTab) => set({ agentsTab }),
   setAutomationOpen: (automationOpen) => set({ automationOpen }),
   setAutomationTab: (automationTab) => set({ automationTab }),
+  setMemoryOpen: (memoryOpen) => set({ memoryOpen }),
+  setMemoryTab: (memoryTab) => set({ memoryTab }),
+  addMediaGalleryItem: (item) => {
+    const path = item.path.trim();
+    if (!path) return;
+    const list = get().mediaGallery;
+    if (list.some((m) => m.path === path)) return;
+    const entry: MediaGalleryItem = {
+      path,
+      kind: item.kind,
+      source: item.source,
+      label: item.label,
+      addedAt: item.addedAt ?? Date.now(),
+    };
+    set({ mediaGallery: [entry, ...list].slice(0, 80) });
+  },
+  clearMediaGallery: () => set({ mediaGallery: [] }),
   upsertAutomationJob: (job) => {
     const list = get().automationJobs;
     const idx = list.findIndex((j) => j.id === job.id);

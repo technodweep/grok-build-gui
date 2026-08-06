@@ -404,6 +404,49 @@ export interface TerminalSnapshot {
   running: boolean;
 }
 
+/** Cross-session memory file under ~/.grok/memory (Phase G). */
+export interface MemoryFileEntry {
+  path: string;
+  relPath: string;
+  scope: string;
+  workspace?: string | null;
+  name: string;
+  sizeBytes?: number | null;
+  modifiedMs?: number | null;
+  deletable: boolean;
+}
+
+export interface MemoryCatalog {
+  memoryRoot: string;
+  configEnabled: boolean;
+  envEnabled?: boolean | null;
+  files: MemoryFileEntry[];
+  notes: string[];
+}
+
+export interface MemoryFileContent {
+  path: string;
+  content: string;
+  truncated: boolean;
+}
+
+export interface LocalMediaData {
+  path: string;
+  mime: string;
+  dataUrl: string;
+  sizeBytes: number;
+  kind: string;
+}
+
+/** Media item tracked for the imagine gallery (from chat paths or disk scan). */
+export interface MediaGalleryItem {
+  path: string;
+  kind: "image" | "video" | "other";
+  source: "chat" | "disk" | "prompt";
+  label?: string;
+  addedAt: number;
+}
+
 /** Local automation job tracked by the GUI (agent-backed via slash). */
 export type AutomationKind = "loop" | "goal" | "workflow" | "research" | "task";
 

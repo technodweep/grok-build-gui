@@ -100,6 +100,10 @@ Update this checklist as features land.
 - [x] Phase F: Automation hub (tasks/loops/goals/workflows/research)
 - [x] Phase F: `kill_terminal` / `release_terminal` host commands
 - [x] Phase F: Terminal complete desktop notifications
+- [x] Phase G: Memory browser (`~/.grok/memory`) + remember / flush / dream
+- [x] Phase G: Config `[memory].enabled` toggle + session `/memory on|off`
+- [x] Phase G: Imagine gallery + `/imagine` / `/imagine-video`
+- [x] Phase G: Inline media in chat + prompt image attach (ACP image blocks)
 
 ## Packaging (PR8)
 

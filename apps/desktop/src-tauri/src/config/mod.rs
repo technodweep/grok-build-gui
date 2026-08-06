@@ -6,6 +6,7 @@ use crate::error::{AppError, AppResult};
 pub mod agents;
 pub mod extensions;
 pub mod grok_config;
+pub mod memory;
 pub mod settings;
 pub use agents::{
     delete_user_agent, delete_user_persona, load_agents_catalog, save_user_agent, save_user_persona,
@@ -17,6 +18,10 @@ pub use extensions::{
     AddMcpArgs, ExtensionsHub, HookInfo, TrustedFolder,
 };
 pub use grok_config::{load_grok_config_overview, GrokConfigOverview, McpServerInfo};
+pub use memory::{
+    delete_memory_file, list_recent_media, load_memory_catalog, read_local_media, read_memory_file,
+    set_memory_config_enabled, LocalMediaData, MemoryCatalog, MemoryFileContent, MemoryFileEntry,
+};
 pub use settings::{load_settings, save_settings, GuiSettings};
 
 /// Resolve Grok home directory (`GROK_HOME` or `~/.grok`).

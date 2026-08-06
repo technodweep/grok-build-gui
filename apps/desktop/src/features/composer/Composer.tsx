@@ -26,6 +26,7 @@ import {
   exportConversationToFile,
   writeTextFile,
 } from "../../shared/export";
+import { isImagePath } from "../../shared/mediaPaths";
 import { asDisplayText } from "../../shared/text";
 import { nextId, useAppStore } from "../../shared/store";
 import type { FileEntry, SlashCommand } from "../../shared/types";
@@ -92,6 +93,9 @@ export function Composer() {
   const setAutomationOpen = useAppStore((s) => s.setAutomationOpen);
   const setAutomationTab = useAppStore((s) => s.setAutomationTab);
   const upsertAutomationJob = useAppStore((s) => s.upsertAutomationJob);
+  const setMemoryOpen = useAppStore((s) => s.setMemoryOpen);
+  const setMemoryTab = useAppStore((s) => s.setMemoryTab);
+  const addMediaGalleryItem = useAppStore((s) => s.addMediaGalleryItem);
 
   const [sending, setSending] = useState(false);
   const [palette, setPalette] = useState<PaletteMode>(null);
@@ -438,6 +442,131 @@ export function Composer() {
           } catch (e) {
             setError(e instanceof Error ? e.message : String(e));
           }
+        }
+        break;
+      }
+      case "memory":
+      case "mem": {
+        if (!argTrim) {
+          setMemoryTab("browse");
+          setMemoryOpen(true);
+          break;
+        }
+        const low = argTrim.toLowerCase();
+        if (low === "on" || low === "off") {
+          if (!ready) {
+            setError("Connect a session first");
+            break;
+          }
+          try {
+            await dispatchSend(`/memory ${low}`, []);
+          } catch (e) {
+            setError(e instanceof Error ? e.message : String(e));
+          }
+          break;
+        }
+        setMemoryTab("browse");
+        setMemoryOpen(true);
+        break;
+      }
+      case "remember": {
+        if (!argTrim) {
+          setMemoryTab("remember");
+          setMemoryOpen(true);
+          break;
+        }
+        if (!ready) {
+          setError("Connect a session first");
+          break;
+        }
+        if (!window.confirm(`Remember this note?\n\n${argTrim.slice(0, 200)}`)) {
+          break;
+        }
+        try {
+          pushItem({
+            id: nextId(),
+            kind: "system",
+            text: `Remember → ${argTrim.slice(0, 80)}`,
+          });
+          await dispatchSend(`/remember ${argTrim}`, []);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e));
+        }
+        break;
+      }
+      case "flush": {
+        if (!ready) {
+          setError("Connect a session first");
+          break;
+        }
+        if (!window.confirm("Flush session knowledge into memory?")) break;
+        try {
+          pushItem({ id: nextId(), kind: "system", text: "Memory flush started…" });
+          await dispatchSend("/flush", []);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e));
+        }
+        break;
+      }
+      case "dream": {
+        if (!ready) {
+          setError("Connect a session first");
+          break;
+        }
+        if (!window.confirm("Run memory dream consolidation?")) break;
+        try {
+          pushItem({
+            id: nextId(),
+            kind: "system",
+            text: "Memory dream consolidation started…",
+          });
+          await dispatchSend("/dream", []);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e));
+        }
+        break;
+      }
+      case "imagine": {
+        if (!argTrim) {
+          setMemoryTab("imagine");
+          setMemoryOpen(true);
+          break;
+        }
+        if (!ready) {
+          setError("Connect a session first");
+          break;
+        }
+        try {
+          pushItem({
+            id: nextId(),
+            kind: "system",
+            text: `Imagine → ${argTrim.slice(0, 80)}`,
+          });
+          await dispatchSend(`/imagine ${argTrim}`, []);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e));
+        }
+        break;
+      }
+      case "imagine-video": {
+        if (!argTrim) {
+          setMemoryTab("imagine");
+          setMemoryOpen(true);
+          break;
+        }
+        if (!ready) {
+          setError("Connect a session first");
+          break;
+        }
+        try {
+          pushItem({
+            id: nextId(),
+            kind: "system",
+            text: `Imagine video → ${argTrim.slice(0, 80)}`,
+          });
+          await dispatchSend(`/imagine-video ${argTrim}`, []);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e));
         }
         break;
       }
@@ -1283,40 +1412,47 @@ export function Composer() {
       <div style={{ maxWidth: 896, margin: "0 auto", display: "flex", flexDirection: "column", gap: 8 }}>
         {attachments.length > 0 ? (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {attachments.map((a) => (
-              <span
-                key={a}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  borderRadius: 999,
-                  border: "1px solid #2a3140",
-                  background: "#0c0e12",
-                  color: "#7c9cff",
-                  fontSize: 12,
-                  padding: "3px 8px",
-                  fontFamily: "ui-monospace, Menlo, monospace",
-                }}
-              >
-                @{a}
-                <button
-                  type="button"
-                  onClick={() => removeAttachment(a)}
+            {attachments.map((a) => {
+              const img = isImagePath(a);
+              return (
+                <span
+                  key={a}
                   style={{
-                    border: "none",
-                    background: "transparent",
-                    color: "#8b95a8",
-                    cursor: "pointer",
-                    padding: 0,
-                    lineHeight: 1,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    borderRadius: 999,
+                    border: img
+                      ? "1px solid color-mix(in srgb, var(--gb-accent) 50%, var(--gb-border))"
+                      : "1px solid #2a3140",
+                    background: "#0c0e12",
+                    color: img ? "var(--gb-accent)" : "#7c9cff",
+                    fontSize: 12,
+                    padding: "3px 8px",
+                    fontFamily: "ui-monospace, Menlo, monospace",
                   }}
-                  aria-label={`Remove ${a}`}
+                  title={img ? "Image attachment (sent as ACP image block)" : a}
                 >
-                  ×
-                </button>
-              </span>
-            ))}
+                  {img ? "🖼 " : "@"}
+                  {a.split("/").pop() || a}
+                  <button
+                    type="button"
+                    onClick={() => removeAttachment(a)}
+                    style={{
+                      border: "none",
+                      background: "transparent",
+                      color: "#8b95a8",
+                      cursor: "pointer",
+                      padding: 0,
+                      lineHeight: 1,
+                    }}
+                    aria-label={`Remove ${a}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              );
+            })}
           </div>
         ) : null}
 
@@ -1434,7 +1570,56 @@ export function Composer() {
                     : "Ready"
                 : "Not connected"}
           </p>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              disabled={!ready}
+              onClick={() => {
+                void (async () => {
+                  try {
+                    const { open } = await import("@tauri-apps/plugin-dialog");
+                    const picked = await open({
+                      multiple: true,
+                      filters: [
+                        {
+                          name: "Images",
+                          extensions: ["png", "jpg", "jpeg", "gif", "webp", "bmp"],
+                        },
+                      ],
+                    });
+                    if (!picked) return;
+                    const paths = Array.isArray(picked) ? picked : [picked];
+                    const cwd = (
+                      useAppStore.getState().projectCwd ||
+                      useAppStore.getState().session?.cwd ||
+                      ""
+                    ).replace(/\/+$/, "");
+                    for (const abs of paths) {
+                      if (!abs) continue;
+                      let rel = abs;
+                      if (cwd && (abs === cwd || abs.startsWith(cwd + "/"))) {
+                        rel = abs === cwd ? "." : abs.slice(cwd.length + 1);
+                      }
+                      addAttachment(rel);
+                      if (isImagePath(rel)) {
+                        addMediaGalleryItem({
+                          path: abs,
+                          kind: "image",
+                          source: "prompt",
+                          label: rel,
+                        });
+                      }
+                    }
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : String(e));
+                  }
+                })();
+              }}
+              style={secondaryBtn}
+              title="Attach image for the prompt (ACP image block when possible)"
+            >
+              Image
+            </button>
             {turnActive ? (
               <button
                 type="button"

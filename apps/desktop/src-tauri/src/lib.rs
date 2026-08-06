@@ -14,12 +14,14 @@ use acp::{
     TerminalSnapshot,
 };
 use config::{
-    add_mcp_server, delete_user_agent, delete_user_persona, environment_info, load_agents_catalog,
-    load_extensions_hub, load_grok_config_overview, load_settings, plugin_install,
-    plugin_set_enabled, plugin_uninstall, remove_mcp_server, save_settings, save_user_agent,
-    save_user_persona, set_hook_enabled, set_mcp_enabled, set_project_trust, set_skill_disabled,
-    AddMcpArgs, AgentDef, AgentsCatalog, EnvironmentInfo, ExtensionsHub, GrokConfigOverview,
-    GuiSettings, HookInfo, McpServerInfo, PersonaDef, TrustedFolder,
+    add_mcp_server, delete_memory_file, delete_user_agent, delete_user_persona, environment_info,
+    list_recent_media, load_agents_catalog, load_extensions_hub, load_grok_config_overview,
+    load_memory_catalog, load_settings, plugin_install, plugin_set_enabled, plugin_uninstall,
+    read_local_media, read_memory_file, remove_mcp_server, save_settings, save_user_agent,
+    save_user_persona, set_hook_enabled, set_mcp_enabled, set_memory_config_enabled,
+    set_project_trust, set_skill_disabled, AddMcpArgs, AgentDef, AgentsCatalog, EnvironmentInfo,
+    ExtensionsHub, GrokConfigOverview, GuiSettings, HookInfo, LocalMediaData, McpServerInfo,
+    MemoryCatalog, MemoryFileContent, MemoryFileEntry, PersonaDef, TrustedFolder,
 };
 use error::AppResult;
 use fs_index::FileEntry;
@@ -236,6 +238,35 @@ async fn send_prompt(handle: tauri::State<'_, Arc<AcpHandle>>, args: PromptArgs)
 
     for rel in &args.attachments {
         let path_label = rel.clone();
+        // Prefer ACP image blocks for common image extensions (G6).
+        if is_image_attachment(rel) {
+            match read_local_media(rel, Some(&cwd), 8 * 1024 * 1024) {
+                Ok(media) => {
+                    // media.data_url is data:mime;base64,<data>
+                    let data = media
+                        .data_url
+                        .split_once(',')
+                        .map(|(_, d)| d.to_string())
+                        .unwrap_or_default();
+                    if !data.is_empty() {
+                        blocks.push(json!({
+                            "type": "image",
+                            "mimeType": media.mime,
+                            "data": data,
+                            "uri": format!("file://{}", media.path)
+                        }));
+                        blocks.push(json!({
+                            "type": "text",
+                            "text": format!("\n[Attached image: {path_label}]\n")
+                        }));
+                        continue;
+                    }
+                }
+                Err(_) => {
+                    // Fall through to path reference.
+                }
+            }
+        }
         match fs_index::read_attachment(&cwd, rel, 48 * 1024) {
             Ok(content) => {
                 // Prefer embedded resource with text for small files.
@@ -265,6 +296,16 @@ async fn send_prompt(handle: tauri::State<'_, Arc<AcpHandle>>, args: PromptArgs)
     }
 
     handle.send_prompt_blocks(blocks).await
+}
+
+fn is_image_attachment(path: &str) -> bool {
+    let lower = path.to_lowercase();
+    lower.ends_with(".png")
+        || lower.ends_with(".jpg")
+        || lower.ends_with(".jpeg")
+        || lower.ends_with(".gif")
+        || lower.ends_with(".webp")
+        || lower.ends_with(".bmp")
 }
 
 #[tauri::command]
@@ -453,6 +494,75 @@ fn plugin_uninstall_cmd(args: NameArgs) -> AppResult<String> {
 #[tauri::command]
 fn plugin_set_enabled_cmd(args: NamedEnabledArgs) -> AppResult<String> {
     plugin_set_enabled(&args.name, args.enabled)
+}
+
+// ── Memory & media (Phase G) ───────────────────────────────────────────────
+
+#[tauri::command]
+fn get_memory_catalog() -> MemoryCatalog {
+    load_memory_catalog()
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MemoryPathArgs {
+    path: String,
+    #[serde(default)]
+    max_chars: Option<usize>,
+}
+
+#[tauri::command]
+fn get_memory_file(args: MemoryPathArgs) -> AppResult<MemoryFileContent> {
+    read_memory_file(&args.path, args.max_chars.unwrap_or(80_000))
+}
+
+#[tauri::command]
+fn delete_memory_file_cmd(args: MemoryPathArgs) -> AppResult<()> {
+    delete_memory_file(&args.path)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MemoryEnabledArgs {
+    enabled: bool,
+}
+
+#[tauri::command]
+fn set_memory_enabled_cmd(args: MemoryEnabledArgs) -> AppResult<bool> {
+    set_memory_config_enabled(args.enabled)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LocalMediaArgs {
+    path: String,
+    #[serde(default)]
+    project_cwd: Option<String>,
+    #[serde(default)]
+    max_bytes: Option<usize>,
+}
+
+#[tauri::command]
+fn get_local_media(args: LocalMediaArgs) -> AppResult<LocalMediaData> {
+    read_local_media(
+        &args.path,
+        args.project_cwd.as_deref(),
+        args.max_bytes.unwrap_or(6 * 1024 * 1024),
+    )
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RecentMediaArgs {
+    #[serde(default)]
+    project_cwd: Option<String>,
+    #[serde(default)]
+    limit: Option<usize>,
+}
+
+#[tauri::command]
+fn list_recent_media_cmd(args: RecentMediaArgs) -> AppResult<Vec<MemoryFileEntry>> {
+    list_recent_media(args.project_cwd.as_deref(), args.limit.unwrap_or(24))
 }
 
 #[derive(Debug, Deserialize)]
@@ -759,6 +869,12 @@ pub fn run() {
             plugin_install_cmd,
             plugin_uninstall_cmd,
             plugin_set_enabled_cmd,
+            get_memory_catalog,
+            get_memory_file,
+            delete_memory_file_cmd,
+            set_memory_enabled_cmd,
+            get_local_media,
+            list_recent_media_cmd,
             get_agents_catalog,
             save_agent_def,
             delete_agent_def,

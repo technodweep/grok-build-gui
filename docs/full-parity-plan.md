@@ -75,7 +75,7 @@
 | Prompt history ↑/↓ | **Partial** | No fuzzy `/history` panel |
 | `@` file attach | **Done** | Fuzzy + small-file embed |
 | Drag-drop files | **Done** | |
-| Image / media chips in prompt | **Gap** | Capability `image` often false; still plan UI for when true |
+| Image / media chips in prompt | **Done** | Image picker + drag-drop; ACP image blocks when readable |
 | Export conversation | **Done** | File + clipboard |
 | Copy last reply | **Partial** | Last only; TUI supports Nth + path |
 | Find in scrollback | **Partial** | Basic find; no jump/timeline |
@@ -169,17 +169,17 @@
 
 | Feature | Status | Notes / approach |
 |---------|--------|------------------|
-| `/remember` quick note | **Gap** | Thin prompt + confirmation |
-| Memory browser | **Gap** | On/off + list when enabled |
-| Flush / dream | **Gap** | Agent-backed actions |
+| `/remember` quick note | **Done** | Modal + `/remember` client slash |
+| Memory browser | **Done** | Disk list under `~/.grok/memory` + preview |
+| Flush / dream | **Done** | Confirmed buttons → agent slash |
 
 ### 4.9 Media
 
 | Feature | Status | Notes / approach |
 |---------|--------|------------------|
-| `/imagine` | **Gap** | Run as agent command + gallery pane |
-| `/imagine-video` | **Gap** | Same |
-| Inline image display in chat | **Gap** | When content includes images |
+| `/imagine` | **Done** | Media modal + client slash + gallery |
+| `/imagine-video` | **Done** | Same; video player component |
+| Inline image display in chat | **Done** | Markdown img + bare path harvest |
 
 ### 4.10 Automation: loops, goals, workflows, research
 
@@ -379,6 +379,14 @@ Build in vertical slices that stay shippable. Each phase ends with: checklist up
 | G4 | **Imagine gallery** | Run `/imagine`; show images in chat |
 | G5 | **Imagine video** | Same for video; player component |
 | G6 | **Prompt image attach** | When `promptCapabilities.image` true |
+
+**Phase G status (2026-08-05):** Implemented.
+- Memory & media hub (`/memory`, status bar **Memory**): remember, browse, flush/dream, imagine
+- Disk browser for `~/.grok/memory` (global / workspace / sessions) + session log delete
+- Config toggle `[memory].enabled` + session `/memory on|off`
+- Client slash: `/remember`, `/flush`, `/dream`, `/imagine`, `/imagine-video`, `/memory`
+- Inline media in chat (markdown images + bare paths); tool image blocks
+- Prompt image attach (picker + ACP `type: image` base64 blocks); gallery of chat/disk media
 
 **Exit criteria:** Memory and media workflows usable without TUI.
 
