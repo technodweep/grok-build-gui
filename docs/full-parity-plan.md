@@ -209,9 +209,9 @@
 | Font size | **Done** | |
 | Binary override | **Done** | |
 | Full TUI theme packs | **N/A→Remap** | Map to desktop theme system |
-| Project rules / AGENTS.md editor | **Gap** | Open/edit files; not reimplement engine |
+| Project rules / AGENTS.md editor | **Done** | Project hub · Rules tab |
 | Sandbox profile UI | **Done** | Account hub · Sandbox tab |
-| Custom models UI | **Gap** | Edit config or models section |
+| Custom models UI | **Done** | Project hub · Custom models tab |
 
 ### 4.13 Desktop packaging & quality
 

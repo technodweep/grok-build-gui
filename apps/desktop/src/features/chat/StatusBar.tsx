@@ -73,6 +73,7 @@ export function StatusBar() {
   const setAccountOpen = useAppStore((s) => s.setAccountOpen);
   const setAccountTab = useAppStore((s) => s.setAccountTab);
   const setHelpOpen = useAppStore((s) => s.setHelpOpen);
+  const setProjectConfigOpen = useAppStore((s) => s.setProjectConfigOpen);
   const terminals = useAppStore((s) => s.terminals);
   const automationJobs = useAppStore((s) => s.automationJobs);
   const rewindTurns = useAppStore((s) => s.rewindTurns);
@@ -498,6 +499,14 @@ export function StatusBar() {
             Term{terminals.length ? ` (${terminals.length})` : ""}
           </button>
         ) : null}
+        <button
+          type="button"
+          style={btn}
+          onClick={() => setProjectConfigOpen(true)}
+          title="Project rules (AGENTS.md) & custom models (/rules, /custom-models)"
+        >
+          Rules
+        </button>
         <button
           type="button"
           style={btn}

@@ -147,6 +147,56 @@ export function setTelemetryEnabled(enabled: boolean) {
   });
 }
 
+export function getProjectRules(projectCwd?: string | null) {
+  return invoke<import("./types").ProjectRulesCatalog>("get_project_rules", {
+    args: { projectCwd: projectCwd ?? null },
+  });
+}
+
+export function getProjectRule(path: string, maxChars?: number) {
+  return invoke<import("./types").ProjectRuleContent>("get_project_rule", {
+    args: { path, maxChars: maxChars ?? null },
+  });
+}
+
+export function saveProjectRule(
+  path: string,
+  content: string,
+  projectCwd?: string | null,
+) {
+  return invoke<void>("save_project_rule_cmd", {
+    args: { path, content, projectCwd: projectCwd ?? null },
+  });
+}
+
+export function ensureAgentsMd(projectCwd: string, content?: string | null) {
+  return invoke<string>("ensure_agents_md_cmd", {
+    args: { projectCwd, content: content ?? null },
+  });
+}
+
+export function getCustomModels() {
+  return invoke<import("./types").CustomModelsCatalog>("get_custom_models");
+}
+
+export function saveCustomModel(args: import("./types").SaveCustomModelArgs) {
+  return invoke<import("./types").CustomModelDef>("save_custom_model_cmd", {
+    args,
+  });
+}
+
+export function deleteCustomModel(id: string) {
+  return invoke<void>("delete_custom_model_cmd", {
+    args: { id },
+  });
+}
+
+export function setDefaultModelConfig(modelId?: string | null) {
+  return invoke<string | null>("set_default_model_cmd", {
+    args: { modelId: modelId ?? null },
+  });
+}
+
 export function deleteDiskSession(sessionId: string) {
   return invoke<void>("delete_disk_session", {
     args: { sessionId },

@@ -112,6 +112,8 @@ Update this checklist as features land.
 - [x] Phase I: Signing/notarization docs + optional CI secrets
 - [x] Phase I: In-app Help/Docs panel (`/docs`)
 - [x] Phase I: Modal a11y (focus trap, ARIA, Esc)
+- [x] Project rules / AGENTS.md editor (`/rules`)
+- [x] Custom models config UI (`/custom-models`, `[model.*]` + default)
 
 ## Packaging (PR8)
 

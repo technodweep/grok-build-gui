@@ -353,6 +353,26 @@ function GrokConfigTab({
         >
           Extensions hub
         </button>
+        <button
+          type="button"
+          style={primary}
+          onClick={() => {
+            useAppStore.getState().setProjectConfigTab("rules");
+            useAppStore.getState().setProjectConfigOpen(true);
+          }}
+        >
+          Project rules
+        </button>
+        <button
+          type="button"
+          style={primary}
+          onClick={() => {
+            useAppStore.getState().setProjectConfigTab("models");
+            useAppStore.getState().setProjectConfigOpen(true);
+          }}
+        >
+          Custom models
+        </button>
       </div>
 
       <section style={section}>

@@ -79,6 +79,67 @@ export interface PrivacyConfig {
 /** Permission policy for tool prompts (excludes plan mode). */
 export type PermissionPolicy = "ask" | "auto" | "always";
 
+export interface ProjectRuleFile {
+  path: string;
+  relPath: string;
+  scope: string;
+  name: string;
+  sizeBytes: number;
+  writable: boolean;
+}
+
+export interface ProjectRulesCatalog {
+  projectCwd?: string | null;
+  files: ProjectRuleFile[];
+  notes: string[];
+  suggestedAgentsPath?: string | null;
+  homeRulesDir: string;
+}
+
+export interface ProjectRuleContent {
+  path: string;
+  content: string;
+  truncated: boolean;
+}
+
+export interface CustomModelDef {
+  id: string;
+  model?: string | null;
+  name?: string | null;
+  description?: string | null;
+  baseUrl?: string | null;
+  apiBackend?: string | null;
+  hasApiKey: boolean;
+  envKey?: string | null;
+  temperature?: number | null;
+  topP?: number | null;
+  maxCompletionTokens?: number | null;
+  contextWindow?: number | null;
+}
+
+export interface CustomModelsCatalog {
+  configPath: string;
+  defaultModel?: string | null;
+  models: CustomModelDef[];
+  notes: string[];
+}
+
+export interface SaveCustomModelArgs {
+  id: string;
+  model?: string | null;
+  name?: string | null;
+  description?: string | null;
+  baseUrl?: string | null;
+  apiBackend?: string | null;
+  apiKey?: string | null;
+  clearApiKey?: boolean;
+  envKey?: string | null;
+  temperature?: number | null;
+  topP?: number | null;
+  maxCompletionTokens?: number | null;
+  contextWindow?: number | null;
+}
+
 /** ACP `session/list` entry (may lack disk path). */
 export interface AgentSessionInfo {
   sessionId: string;

@@ -54,6 +54,7 @@ Packaging & signing: **[packaging.md](./packaging.md)**.
 | Memory | `/memory` | Remember, browse, flush/dream, imagine |
 | Account | `/account` | Login/logout, privacy, sandbox, doctor, permissions |
 | Help | `/docs` | In-app guide + online docs link |
+| Project | `/rules` | AGENTS.md / rules + custom models |
 
 ## Permission default
 

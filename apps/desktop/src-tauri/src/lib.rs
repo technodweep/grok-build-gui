@@ -20,17 +20,19 @@ use acp::{
     TerminalSnapshot,
 };
 use config::{
-    add_mcp_server, delete_memory_file, delete_user_agent, delete_user_persona, environment_info,
-    list_recent_media, load_agents_catalog, load_auth_account, load_extensions_hub,
-    load_grok_config_overview, load_memory_catalog, load_privacy_config, load_sandbox_status,
-    load_settings, plugin_install, plugin_set_enabled, plugin_uninstall, read_local_media,
-    read_memory_file, remove_mcp_server, run_doctor, run_login, run_logout, save_settings,
-    save_user_agent, save_user_persona, set_hook_enabled, set_mcp_enabled, set_memory_config_enabled,
-    set_project_trust, set_sandbox_profile, set_skill_disabled, set_telemetry_enabled, AddMcpArgs,
-    AgentDef, AgentsCatalog, AuthAccountInfo, CliActionResult, DoctorReport, EnvironmentInfo,
+    add_mcp_server, delete_custom_model, delete_memory_file, delete_user_agent, delete_user_persona,
+    ensure_agents_md, environment_info, list_recent_media, load_agents_catalog, load_auth_account,
+    load_custom_models, load_extensions_hub, load_grok_config_overview, load_memory_catalog,
+    load_privacy_config, load_project_rules, load_sandbox_status, load_settings, plugin_install,
+    plugin_set_enabled, plugin_uninstall, read_local_media, read_memory_file, read_project_rule,
+    remove_mcp_server, run_doctor, run_login, run_logout, save_custom_model, save_project_rule,
+    save_settings, save_user_agent, save_user_persona, set_default_model, set_hook_enabled,
+    set_mcp_enabled, set_memory_config_enabled, set_project_trust, set_sandbox_profile,
+    set_skill_disabled, set_telemetry_enabled, AddMcpArgs, AgentDef, AgentsCatalog, AuthAccountInfo,
+    CliActionResult, CustomModelDef, CustomModelsCatalog, DoctorReport, EnvironmentInfo,
     ExtensionsHub, GrokConfigOverview, GuiSettings, HookInfo, LocalMediaData, LoginMode,
     McpServerInfo, MemoryCatalog, MemoryFileContent, MemoryFileEntry, PersonaDef, PrivacyConfig,
-    SandboxStatus, TrustedFolder,
+    ProjectRuleContent, ProjectRulesCatalog, SandboxStatus, SaveCustomModelArgs, TrustedFolder,
 };
 use error::AppResult;
 use fs_index::FileEntry;
@@ -585,6 +587,93 @@ fn set_telemetry_enabled_cmd(args: TelemetryArgs) -> AppResult<PrivacyConfig> {
     set_telemetry_enabled(args.enabled)
 }
 
+// ── Project rules + custom models ──────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ProjectCwdArgs {
+    #[serde(default)]
+    project_cwd: Option<String>,
+}
+
+#[tauri::command]
+fn get_project_rules(args: ProjectCwdArgs) -> ProjectRulesCatalog {
+    load_project_rules(args.project_cwd.as_deref())
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RulePathArgs {
+    path: String,
+    #[serde(default)]
+    max_chars: Option<usize>,
+}
+
+#[tauri::command]
+fn get_project_rule(args: RulePathArgs) -> AppResult<ProjectRuleContent> {
+    read_project_rule(&args.path, args.max_chars.unwrap_or(120_000))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SaveRuleArgs {
+    path: String,
+    content: String,
+    #[serde(default)]
+    project_cwd: Option<String>,
+}
+
+#[tauri::command]
+fn save_project_rule_cmd(args: SaveRuleArgs) -> AppResult<()> {
+    save_project_rule(&args.path, &args.content, args.project_cwd.as_deref())
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct EnsureAgentsArgs {
+    project_cwd: String,
+    #[serde(default)]
+    content: Option<String>,
+}
+
+#[tauri::command]
+fn ensure_agents_md_cmd(args: EnsureAgentsArgs) -> AppResult<String> {
+    ensure_agents_md(&args.project_cwd, args.content.as_deref())
+}
+
+#[tauri::command]
+fn get_custom_models() -> CustomModelsCatalog {
+    load_custom_models()
+}
+
+#[tauri::command]
+fn save_custom_model_cmd(args: SaveCustomModelArgs) -> AppResult<CustomModelDef> {
+    save_custom_model(args)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ModelIdArgs {
+    id: String,
+}
+
+#[tauri::command]
+fn delete_custom_model_cmd(args: ModelIdArgs) -> AppResult<()> {
+    delete_custom_model(&args.id)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct DefaultModelArgs {
+    #[serde(default)]
+    model_id: Option<String>,
+}
+
+#[tauri::command]
+fn set_default_model_cmd(args: DefaultModelArgs) -> AppResult<Option<String>> {
+    set_default_model(args.model_id.as_deref())
+}
+
 // ── Memory & media (Phase G) ───────────────────────────────────────────────
 
 #[tauri::command]
@@ -972,6 +1061,14 @@ pub fn run() {
             set_sandbox_profile_cmd,
             get_privacy_config,
             set_telemetry_enabled_cmd,
+            get_project_rules,
+            get_project_rule,
+            save_project_rule_cmd,
+            ensure_agents_md_cmd,
+            get_custom_models,
+            save_custom_model_cmd,
+            delete_custom_model_cmd,
+            set_default_model_cmd,
             get_agents_catalog,
             save_agent_def,
             delete_agent_def,

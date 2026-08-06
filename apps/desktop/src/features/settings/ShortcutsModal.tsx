@@ -51,6 +51,8 @@ const ROWS: { keys: string; action: string }[] = [
   { keys: "/privacy · /sandbox · /doctor", action: "Privacy, sandbox profile, diagnostics" },
   { keys: "Mode chip · right-click", action: "Permission three-way (Ask / Auto / Always)" },
   { keys: "/docs · /help", action: "In-app help & docs panel" },
+  { keys: "/rules · /agents-md", action: "Project rules / AGENTS.md editor" },
+  { keys: "/custom-models", action: "Custom model endpoints in config.toml" },
   { keys: "Esc (in modal)", action: "Close dialog (focus trap restores focus)" },
   { keys: "/shortcuts", action: "Open this cheatsheet" },
   { keys: "/context", action: "Context window usage panel" },

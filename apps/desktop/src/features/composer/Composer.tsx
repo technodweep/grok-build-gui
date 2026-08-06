@@ -99,6 +99,8 @@ export function Composer() {
   const setAccountOpen = useAppStore((s) => s.setAccountOpen);
   const setAccountTab = useAppStore((s) => s.setAccountTab);
   const setHelpOpen = useAppStore((s) => s.setHelpOpen);
+  const setProjectConfigOpen = useAppStore((s) => s.setProjectConfigOpen);
+  const setProjectConfigTab = useAppStore((s) => s.setProjectConfigTab);
   const addMediaGalleryItem = useAppStore((s) => s.addMediaGalleryItem);
 
   const [sending, setSending] = useState(false);
@@ -668,6 +670,18 @@ export function Composer() {
             setError(e instanceof Error ? e.message : String(e));
           }
         }
+        break;
+      }
+      case "rules":
+      case "agents-md": {
+        setProjectConfigTab("rules");
+        setProjectConfigOpen(true);
+        break;
+      }
+      case "custom-models":
+      case "config-models": {
+        setProjectConfigTab("models");
+        setProjectConfigOpen(true);
         break;
       }
       case "agents":

@@ -25,6 +25,7 @@ import { AutomationModal } from "./features/automation/AutomationModal";
 import { MemoryMediaModal } from "./features/memory/MemoryMediaModal";
 import { AccountSafetyModal } from "./features/account/AccountSafetyModal";
 import { HelpDocsPanel } from "./features/help/HelpDocsPanel";
+import { ProjectConfigModal } from "./features/project/ProjectConfigModal";
 import { Welcome } from "./features/sessions/Welcome";
 import { extractMediaPaths, mediaKind } from "./shared/mediaPaths";
 import {
@@ -726,6 +727,7 @@ export default function App() {
       <MemoryMediaModal />
       <AccountSafetyModal />
       <HelpDocsPanel />
+      <ProjectConfigModal />
       <HistoryPanel />
       <ShortcutsModal />
       <ContextPanel />

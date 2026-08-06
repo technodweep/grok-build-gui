@@ -75,6 +75,8 @@ interface AppState {
   accountOpen: boolean;
   accountTab: "account" | "privacy" | "sandbox" | "doctor" | "safety";
   helpOpen: boolean;
+  projectConfigOpen: boolean;
+  projectConfigTab: "rules" | "models";
   signals: SessionSignals | null;
   /** Subagents for the active (or last loaded) parent session. */
   subagents: SubagentInfo[];
@@ -183,6 +185,8 @@ interface AppState {
     t: "account" | "privacy" | "sandbox" | "doctor" | "safety",
   ) => void;
   setHelpOpen: (v: boolean) => void;
+  setProjectConfigOpen: (v: boolean) => void;
+  setProjectConfigTab: (t: "rules" | "models") => void;
   addMediaGalleryItem: (item: Omit<MediaGalleryItem, "addedAt"> & { addedAt?: number }) => void;
   clearMediaGallery: () => void;
   upsertAutomationJob: (job: AutomationJob) => void;
@@ -416,6 +420,26 @@ const CLIENT_COMMANDS: SlashCommand[] = [
   { name: "howto", description: "Alias for /docs", source: "client" },
   { name: "guides", description: "Alias for /docs", source: "client" },
   {
+    name: "rules",
+    description: "Project rules / AGENTS.md editor",
+    source: "client",
+  },
+  {
+    name: "agents-md",
+    description: "Alias for /rules",
+    source: "client",
+  },
+  {
+    name: "custom-models",
+    description: "Custom model endpoints in config.toml",
+    source: "client",
+  },
+  {
+    name: "config-models",
+    description: "Alias for /custom-models",
+    source: "client",
+  },
+  {
     name: "agents",
     description: "Agents & personas manager (alias: /config-agents)",
     source: "client",
@@ -597,6 +621,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   accountOpen: false,
   accountTab: "account",
   helpOpen: false,
+  projectConfigOpen: false,
+  projectConfigTab: "rules",
   signals: null,
   subagents: [],
   suppressHistoryUpdates: false,
@@ -869,6 +895,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   setAccountOpen: (accountOpen) => set({ accountOpen }),
   setAccountTab: (accountTab) => set({ accountTab }),
   setHelpOpen: (helpOpen) => set({ helpOpen }),
+  setProjectConfigOpen: (projectConfigOpen) => set({ projectConfigOpen }),
+  setProjectConfigTab: (projectConfigTab) => set({ projectConfigTab }),
   addMediaGalleryItem: (item) => {
     const path = item.path.trim();
     if (!path) return;
