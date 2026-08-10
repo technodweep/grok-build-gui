@@ -19,6 +19,8 @@ UI (React)  ──invoke/events──►  Rust (Tauri)  ──JSON-RPC stdio─�
 
 See **[full-parity-plan.md](./full-parity-plan.md)** for the complete Grok Build feature inventory and phases **A–I** (implemented through release quality).
 
+See **[multi-repo-workspaces-plan.md](./multi-repo-workspaces-plan.md)** for the proposed optional multi-repository workspace dashboard, repository-scoped runtime design, safety boundaries, UI wireframes, and implementation phases.
+
 Shipped surface checklist: **[acp-surface.md](./acp-surface.md)**.  
 Packaging & signing: **[packaging.md](./packaging.md)**.
 

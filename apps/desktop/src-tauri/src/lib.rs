@@ -353,6 +353,36 @@ fn respond_elicitation(
     handle.respond_elicitation(decision.request_id, decision.outcome)
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UserQuestionDecision {
+    request_id: Value,
+    outcome: Value,
+}
+
+#[tauri::command]
+fn respond_user_question(
+    handle: tauri::State<'_, Arc<AcpHandle>>,
+    decision: UserQuestionDecision,
+) -> AppResult<()> {
+    handle.respond_user_question(decision.request_id, decision.outcome)
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PlanApprovalDecision {
+    request_id: Value,
+    outcome: Value,
+}
+
+#[tauri::command]
+fn respond_plan_approval(
+    handle: tauri::State<'_, Arc<AcpHandle>>,
+    decision: PlanApprovalDecision,
+) -> AppResult<()> {
+    handle.respond_plan_approval(decision.request_id, decision.outcome)
+}
+
 #[tauri::command]
 fn list_disk_sessions(args: ListSessionsArgs) -> AppResult<Vec<DiskSession>> {
     list_sessions(args.cwd.as_deref())
@@ -1046,6 +1076,8 @@ pub fn run() {
             cancel_turn,
             respond_permission,
             respond_elicitation,
+            respond_user_question,
+            respond_plan_approval,
             list_disk_sessions,
             list_agent_sessions,
             authenticate_agent,

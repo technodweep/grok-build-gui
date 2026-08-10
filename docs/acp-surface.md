@@ -83,6 +83,8 @@ Update this checklist as features land.
 - [x] Phase B: `/plan`, `/view-plan`, plan.md viewer/editor
 - [x] Phase B: enter/exit plan mode permission UX
 - [x] Phase B: ACP `elicitation/create` form + URL modals (+ initialize capabilities)
+- [x] Grok `_x.ai/ask_user_question` question card (options + Other + multi-select; never auto-answered)
+- [x] Grok `_x.ai/exit_plan_mode` plan approval card (approve / request changes / quit; never auto-approved)
 - [x] Phase B: status bar mode cycle Ask · Auto · Plan · Yolo
 - [x] Phase B: `/auto`, `/always-approve` client commands
 - [x] Phase C: context categories + usage tab (`/context`, `/usage`)

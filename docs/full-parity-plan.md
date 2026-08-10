@@ -116,6 +116,8 @@
 | Plan mode enter/exit | **Done** | `/plan`, permission UX for enter/exit_plan_mode |
 | View / edit plan file | **Done** | `plan.md` viewer/editor + exit-plan approval modal |
 | Ask-user questions (elicitation) | **Done** | ACP `elicitation/create` form + URL modals |
+| Ask-user question card (`ask_user_question`) | **Done** | `_x.ai/ask_user_question` modal (options + Other + multi) |
+| Plan approval card (`exit_plan_mode`) | **Done** | `_x.ai/exit_plan_mode` modal (approve / revise / quit) |
 | Mode cycle (Normal / Plan / Yolo) | **Done** | Status bar: Ask · Auto · Plan · Yolo |
 | Permission mode: auto | **Done** | Via mode cycle + `/auto` |
 

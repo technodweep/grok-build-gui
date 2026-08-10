@@ -472,6 +472,41 @@ export function respondElicitation(decision: {
   });
 }
 
+/**
+ * Resolve `_x.ai/ask_user_question`.
+ * Accepted: `{ outcome: "accepted", answers: { [question]: labelOrJoined }, partial_answers?: {} }`
+ * Skip: `{ outcome: "skip_interview" }`
+ */
+export function respondUserQuestion(decision: {
+  requestId: unknown;
+  outcome: Record<string, unknown>;
+}) {
+  return invoke<void>("respond_user_question", {
+    decision: {
+      requestId: decision.requestId,
+      outcome: decision.outcome,
+    },
+  });
+}
+
+/**
+ * Resolve `_x.ai/exit_plan_mode`.
+ * - `{ outcome: "approved", comments?: string }`
+ * - `{ outcome: "request_changes", comments?: string }`
+ * - `{ outcome: "abandoned" }`
+ */
+export function respondPlanApproval(decision: {
+  requestId: unknown;
+  outcome: Record<string, unknown>;
+}) {
+  return invoke<void>("respond_plan_approval", {
+    decision: {
+      requestId: decision.requestId,
+      outcome: decision.outcome,
+    },
+  });
+}
+
 export function dispatchSession(args: {
   cwd?: string | null;
   prompt?: string | null;

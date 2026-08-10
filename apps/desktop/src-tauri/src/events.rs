@@ -13,3 +13,7 @@ pub const TERMINAL_CLOSED: &str = "terminal://closed";
 pub const MODELS_UPDATE: &str = "session://models";
 /// ACP elicitation/create request for structured user input.
 pub const ELICITATION_REQUEST: &str = "session://elicitation";
+/// Grok `_x.ai/ask_user_question` (TUI question card).
+pub const USER_QUESTION_REQUEST: &str = "session://user_question";
+/// Grok `_x.ai/exit_plan_mode` (plan approval card).
+pub const PLAN_APPROVAL_REQUEST: &str = "session://plan_approval";

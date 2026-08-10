@@ -5,7 +5,15 @@ import { Scrollback } from "./features/chat/Scrollback";
 import { StatusBar } from "./features/chat/StatusBar";
 import { Dashboard } from "./features/dashboard/Dashboard";
 import { PermissionModal } from "./features/permissions/PermissionModal";
+import {
+  AskUserQuestionModal,
+  normalizeUserQuestion,
+} from "./features/plan/AskUserQuestionModal";
 import { ElicitationModal } from "./features/plan/ElicitationModal";
+import {
+  PlanApprovalModal,
+  normalizePlanApproval,
+} from "./features/plan/PlanApprovalModal";
 import { PlanViewer } from "./features/plan/PlanViewer";
 import { SubagentsPanel } from "./features/chat/SubagentsPanel";
 import { TerminalPanel } from "./features/chat/TerminalPanel";
@@ -148,6 +156,10 @@ export default function App() {
   const clearPermissions = useAppStore((s) => s.clearPermissions);
   const enqueueElicitation = useAppStore((s) => s.enqueueElicitation);
   const clearElicitations = useAppStore((s) => s.clearElicitations);
+  const enqueueUserQuestion = useAppStore((s) => s.enqueueUserQuestion);
+  const clearUserQuestions = useAppStore((s) => s.clearUserQuestions);
+  const enqueuePlanApproval = useAppStore((s) => s.enqueuePlanApproval);
+  const clearPlanApprovals = useAppStore((s) => s.clearPlanApprovals);
   const setSlashCommands = useAppStore((s) => s.setSlashCommands);
   const setSessionMode = useAppStore((s) => s.setSessionMode);
   const setLiveSessions = useAppStore((s) => s.setLiveSessions);
@@ -326,6 +338,8 @@ export default function App() {
         if (ev.payload === "disconnected" || ev.payload === "error") {
           clearPermissions();
           clearElicitations();
+          clearUserQuestions();
+          clearPlanApprovals();
           setLiveSessions([]);
           clearTerminals();
           setModels(null);
@@ -609,6 +623,30 @@ export default function App() {
     );
 
     track(
+      listen<Record<string, unknown>>("session://user_question", (ev) => {
+        const req = normalizeUserQuestion(ev.payload ?? {});
+        enqueueUserQuestion(req);
+        const title = req.questions[0]?.question?.slice(0, 80) || "Question from agent";
+        if (appProbablyBackground() || useAppStore.getState().view === "dashboard") {
+          void notify(`Grok Build · ${title}`, "Choose an answer to continue.");
+        }
+      }),
+    );
+
+    track(
+      listen<Record<string, unknown>>("session://plan_approval", (ev) => {
+        const req = normalizePlanApproval(ev.payload ?? {});
+        enqueuePlanApproval(req);
+        if (appProbablyBackground() || useAppStore.getState().view === "dashboard") {
+          void notify(
+            "Grok Build · Plan approval",
+            "Approve, request changes, or quit plan mode.",
+          );
+        }
+      }),
+    );
+
+    track(
       listen<TerminalSnapshot>("terminal://update", (ev) => {
         if (!ev.payload?.terminalId) return;
         const prev = useAppStore
@@ -669,6 +707,10 @@ export default function App() {
     clearPermissions,
     enqueueElicitation,
     clearElicitations,
+    enqueueUserQuestion,
+    clearUserQuestions,
+    enqueuePlanApproval,
+    clearPlanApprovals,
     setSessionMode,
     setSlashCommands,
     setLiveSessions,
@@ -726,6 +768,8 @@ export default function App() {
       )}
       <PermissionModal />
       <ElicitationModal />
+      <AskUserQuestionModal />
+      <PlanApprovalModal />
       <PlanViewer />
       <SettingsModal />
       <ModelPickerModal />

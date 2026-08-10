@@ -28,21 +28,40 @@ function toolDetail(req: PermissionRequest): string | null {
   }
 }
 
-function isExitPlan(req: PermissionRequest): boolean {
+function toolBlob(req: PermissionRequest): string {
   const tc = req.toolCall;
-  if (!tc) return false;
-  const blob = `${tc.title ?? ""} ${tc.kind ?? ""} ${tc.toolCallId ?? ""}`.toLowerCase();
+  if (!tc) return "";
+  let meta = "";
+  try {
+    meta = JSON.stringify(tc._meta ?? tc["x.ai"] ?? "");
+  } catch {
+    meta = "";
+  }
+  let raw = "";
+  try {
+    raw =
+      typeof tc.rawInput === "string"
+        ? tc.rawInput
+        : JSON.stringify(tc.rawInput ?? "");
+  } catch {
+    raw = "";
+  }
+  return `${tc.title ?? ""} ${tc.kind ?? ""} ${tc.toolCallId ?? ""} ${meta} ${raw}`.toLowerCase();
+}
+
+function isExitPlan(req: PermissionRequest): boolean {
+  const blob = toolBlob(req);
   return (
     blob.includes("exit_plan_mode") ||
     blob.includes("exit plan mode") ||
-    blob.includes("exit-plan")
+    blob.includes("exit-plan") ||
+    blob.includes("submit for approval") ||
+    blob.includes("plan approval")
   );
 }
 
 function isEnterPlan(req: PermissionRequest): boolean {
-  const tc = req.toolCall;
-  if (!tc) return false;
-  const blob = `${tc.title ?? ""} ${tc.kind ?? ""}`.toLowerCase();
+  const blob = toolBlob(req);
   return (
     blob.includes("enter_plan_mode") ||
     blob.includes("enter plan mode") ||

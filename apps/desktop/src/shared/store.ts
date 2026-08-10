@@ -22,6 +22,8 @@ import type {
   TerminalSnapshot,
   ToolContentBlock,
   TurnUsage,
+  UserQuestionRequest,
+  PlanApprovalRequest,
 } from "./types";
 
 interface AppState {
@@ -102,6 +104,10 @@ interface AppState {
   planModeState: PlanModeState | null;
   /** ACP elicitation/create queue. */
   elicitations: ElicitationRequest[];
+  /** Grok `_x.ai/ask_user_question` queue (TUI question card). */
+  userQuestions: UserQuestionRequest[];
+  /** Grok `_x.ai/exit_plan_mode` queue (plan approval card). */
+  planApprovals: PlanApprovalRequest[];
   /** Compact chat density. */
   compactMode: boolean;
   /** Show timestamps on scroll items. */
@@ -221,6 +227,12 @@ interface AppState {
   enqueueElicitation: (req: ElicitationRequest) => void;
   dequeueElicitation: () => void;
   clearElicitations: () => void;
+  enqueueUserQuestion: (req: UserQuestionRequest) => void;
+  dequeueUserQuestion: () => void;
+  clearUserQuestions: () => void;
+  enqueuePlanApproval: (req: PlanApprovalRequest) => void;
+  dequeuePlanApproval: () => void;
+  clearPlanApprovals: () => void;
   setCompactMode: (v: boolean) => void;
   setShowTimestamps: (v: boolean) => void;
   setRawMarkdown: (v: boolean) => void;
@@ -656,6 +668,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   planMarkdown: null,
   planModeState: null,
   elicitations: [],
+  userQuestions: [],
+  planApprovals: [],
   compactMode: false,
   showTimestamps: false,
   rawMarkdown: false,
@@ -680,6 +694,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         planMarkdown: null,
         planModeState: null,
         elicitations: [],
+        userQuestions: [],
+        planApprovals: [],
       });
       return;
     }
@@ -1035,6 +1051,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   dequeueElicitation: () =>
     set((s) => ({ elicitations: s.elicitations.slice(1) })),
   clearElicitations: () => set({ elicitations: [] }),
+  enqueueUserQuestion: (req) =>
+    set((s) => ({ userQuestions: [...s.userQuestions, req] })),
+  dequeueUserQuestion: () =>
+    set((s) => ({ userQuestions: s.userQuestions.slice(1) })),
+  clearUserQuestions: () => set({ userQuestions: [] }),
+  enqueuePlanApproval: (req) =>
+    set((s) => ({ planApprovals: [...s.planApprovals, req] })),
+  dequeuePlanApproval: () =>
+    set((s) => ({ planApprovals: s.planApprovals.slice(1) })),
+  clearPlanApprovals: () => set({ planApprovals: [] }),
   setCompactMode: (compactMode) => {
     set({ compactMode });
     document.documentElement.setAttribute(

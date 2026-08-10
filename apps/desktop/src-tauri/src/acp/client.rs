@@ -163,6 +163,10 @@ pub struct AcpHandle {
     pending_permissions: Arc<Mutex<HashMap<String, PendingPermission>>>,
     /// elicitation request id → waiter for JSON outcome
     pending_elicitations: Arc<Mutex<HashMap<String, oneshot::Sender<Value>>>>,
+    /// `_x.ai/ask_user_question` request id → waiter for JSON outcome
+    pending_user_questions: Arc<Mutex<HashMap<String, oneshot::Sender<Value>>>>,
+    /// `_x.ai/exit_plan_mode` request id → waiter for JSON outcome
+    pending_plan_approvals: Arc<Mutex<HashMap<String, oneshot::Sender<Value>>>>,
     terminals: Arc<TerminalManager>,
 }
 
@@ -189,6 +193,8 @@ impl AcpHandle {
             always_approve: Mutex::new(false),
             pending_permissions: Arc::new(Mutex::new(HashMap::new())),
             pending_elicitations: Arc::new(Mutex::new(HashMap::new())),
+            pending_user_questions: Arc::new(Mutex::new(HashMap::new())),
+            pending_plan_approvals: Arc::new(Mutex::new(HashMap::new())),
             terminals: TerminalManager::new(),
         }
     }
@@ -455,6 +461,8 @@ impl AcpHandle {
         let always_approve = opts.always_approve;
         let pending_perms = self.pending_permissions.clone();
         let pending_elicit = self.pending_elicitations.clone();
+        let pending_user_q = self.pending_user_questions.clone();
+        let pending_plan = self.pending_plan_approvals.clone();
         let cwd_reader = cwd_for_handlers.clone();
         let terminals = self.terminals.clone();
 
@@ -552,6 +560,8 @@ impl AcpHandle {
                             always_approve,
                             &pending_perms,
                             &pending_elicit,
+                            &pending_user_q,
+                            &pending_plan,
                             &cwd_reader,
                             &terminals,
                         )
@@ -1164,6 +1174,34 @@ impl AcpHandle {
         let _ = waiter.send(outcome);
         Ok(())
     }
+
+    /// Resolve a pending `_x.ai/ask_user_question` with a full JSON-RPC result payload.
+    pub fn respond_user_question(&self, request_id: Value, outcome: Value) -> AppResult<()> {
+        let key = request_id_key(&request_id);
+        let waiter = self
+            .pending_user_questions
+            .lock()
+            .remove(&key)
+            .ok_or_else(|| {
+                AppError::Message("No pending user question for that request id".into())
+            })?;
+        let _ = waiter.send(outcome);
+        Ok(())
+    }
+
+    /// Resolve a pending `_x.ai/exit_plan_mode` with a full JSON-RPC result payload.
+    pub fn respond_plan_approval(&self, request_id: Value, outcome: Value) -> AppResult<()> {
+        let key = request_id_key(&request_id);
+        let waiter = self
+            .pending_plan_approvals
+            .lock()
+            .remove(&key)
+            .ok_or_else(|| {
+                AppError::Message("No pending plan approval for that request id".into())
+            })?;
+        let _ = waiter.send(outcome);
+        Ok(())
+    }
 }
 
 fn chrono_like_now() -> String {
@@ -1240,6 +1278,56 @@ fn parse_permission_options(params: &Option<Value>) -> Vec<PermissionOption> {
     options
 }
 
+fn tool_call_blob(tool_call: Option<&Value>) -> String {
+    let Some(tc) = tool_call else {
+        return String::new();
+    };
+    let title = tc.get("title").and_then(|v| v.as_str()).unwrap_or("");
+    let kind = tc.get("kind").and_then(|v| v.as_str()).unwrap_or("");
+    let id = tc
+        .get("toolCallId")
+        .or_else(|| tc.get("tool_call_id"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let meta_name = tc
+        .pointer("/_meta/x.ai/tool/name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let meta_kind = tc
+        .pointer("/_meta/x.ai/tool/kind")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    format!("{title} {kind} {id} {meta_name} {meta_kind}").to_ascii_lowercase()
+}
+
+/// True when the permission toolCall is `ask_user_question` (answered via ext method).
+fn is_ask_user_question_tool(tool_call: Option<&Value>) -> bool {
+    let blob = tool_call_blob(tool_call);
+    let has_questions = tool_call
+        .and_then(|tc| tc.get("rawInput").or_else(|| tc.get("raw_input")))
+        .and_then(|v| v.get("questions"))
+        .map(|q| q.is_array())
+        .unwrap_or(false);
+    blob.contains("ask_user_question")
+        || blob.contains("ask user question")
+        || blob.split_whitespace().any(|t| t == "ask_user")
+        || has_questions
+}
+
+fn is_exit_plan_mode_tool(tool_call: Option<&Value>) -> bool {
+    let blob = tool_call_blob(tool_call);
+    blob.contains("exit_plan_mode")
+        || blob.contains("exit plan mode")
+        || blob.contains("exit-plan")
+}
+
+fn is_enter_plan_mode_tool(tool_call: Option<&Value>) -> bool {
+    let blob = tool_call_blob(tool_call);
+    blob.contains("enter_plan_mode")
+        || blob.contains("enter plan mode")
+        || blob.contains("enter-plan")
+}
+
 fn pick_auto_allow(options: &[PermissionOption]) -> String {
     options
         .iter()
@@ -1292,6 +1380,8 @@ async fn handle_agent_request(
     always_approve: bool,
     pending_perms: &Arc<Mutex<HashMap<String, PendingPermission>>>,
     pending_elicit: &Arc<Mutex<HashMap<String, oneshot::Sender<Value>>>>,
+    pending_user_q: &Arc<Mutex<HashMap<String, oneshot::Sender<Value>>>>,
+    pending_plan: &Arc<Mutex<HashMap<String, oneshot::Sender<Value>>>>,
     cwd: &std::path::Path,
     terminals: &Arc<TerminalManager>,
 ) {
@@ -1313,12 +1403,25 @@ async fn handle_agent_request(
             let payload = PermissionRequestPayload {
                 request_id: id.clone(),
                 session_id,
-                tool_call,
+                tool_call: tool_call.clone(),
                 options: options.clone(),
                 raw: params.clone().unwrap_or(Value::Null),
             };
 
-            if always_approve {
+            // ask_user_question is answered via `_x.ai/ask_user_question` (question card).
+            // Auto-allow the permission gate so the real UI is the questionnaire.
+            if is_ask_user_question_tool(tool_call.as_ref()) {
+                let option_id = pick_auto_allow(&options);
+                let reply = protocol::response(id, permission_response(&option_id));
+                let _ = cmd_tx.send(AgentCommand::Write(reply));
+                return;
+            }
+
+            // Never YOLO past plan enter/exit — user must see the approval buttons.
+            let force_prompt = is_enter_plan_mode_tool(tool_call.as_ref())
+                || is_exit_plan_mode_tool(tool_call.as_ref());
+
+            if always_approve && !force_prompt {
                 let option_id = pick_auto_allow(&options);
                 let _ = app.emit(events::PERMISSION_REQUEST, &payload);
                 let reply = protocol::response(id, permission_response(&option_id));
@@ -1365,6 +1468,68 @@ async fn handle_agent_request(
                 Err(_) => {
                     tracing::warn!("elicitation timed out");
                     json!({ "action": "cancel" })
+                }
+            };
+            let reply = protocol::response(id, outcome);
+            let _ = cmd_tx.send(AgentCommand::Write(reply));
+        }
+        // Grok TUI question card — never auto-answer, even in yolo/always-approve.
+        "_x.ai/ask_user_question" | "x.ai/ask_user_question" => {
+            let p = params.clone().unwrap_or(Value::Null);
+            let payload = json!({
+                "requestId": id,
+                "sessionId": p.get("sessionId").cloned().unwrap_or(Value::Null),
+                "toolCallId": p.get("toolCallId").or_else(|| p.get("tool_call_id")).cloned(),
+                "questions": p.get("questions").cloned().unwrap_or(Value::Array(vec![])),
+                "mode": p.get("mode").cloned(),
+                "raw": p,
+            });
+            let (tx, rx) = oneshot::channel();
+            let key = request_id_key(&id);
+            pending_user_q.lock().insert(key, tx);
+            let _ = app.emit(events::USER_QUESTION_REQUEST, &payload);
+            let outcome = match tokio::time::timeout(
+                std::time::Duration::from_secs(600),
+                rx,
+            )
+            .await
+            {
+                Ok(Ok(v)) => v,
+                Ok(Err(_)) => json!({ "outcome": "skip_interview" }),
+                Err(_) => {
+                    tracing::warn!("user question timed out; skipping");
+                    json!({ "outcome": "skip_interview" })
+                }
+            };
+            let reply = protocol::response(id, outcome);
+            let _ = cmd_tx.send(AgentCommand::Write(reply));
+        }
+        // Grok TUI plan approval — never auto-approve, even in yolo/always-approve.
+        "_x.ai/exit_plan_mode" | "x.ai/exit_plan_mode" => {
+            let p = params.clone().unwrap_or(Value::Null);
+            let payload = json!({
+                "requestId": id,
+                "sessionId": p.get("sessionId").cloned().unwrap_or(Value::Null),
+                "toolCallId": p.get("toolCallId").or_else(|| p.get("tool_call_id")).cloned(),
+                "planContent": p.get("planContent").or_else(|| p.get("plan_content")).cloned(),
+                "raw": p,
+            });
+            let (tx, rx) = oneshot::channel();
+            let key = request_id_key(&id);
+            pending_plan.lock().insert(key, tx);
+            let _ = app.emit(events::PLAN_APPROVAL_REQUEST, &payload);
+            let outcome = match tokio::time::timeout(
+                std::time::Duration::from_secs(600),
+                rx,
+            )
+            .await
+            {
+                // Default to request_changes (stay in plan) rather than abandon on hang-up.
+                Ok(Ok(v)) => v,
+                Ok(Err(_)) => json!({ "outcome": "request_changes" }),
+                Err(_) => {
+                    tracing::warn!("plan approval timed out; requesting changes");
+                    json!({ "outcome": "request_changes" })
                 }
             };
             let reply = protocol::response(id, outcome);

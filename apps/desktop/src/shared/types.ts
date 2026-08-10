@@ -507,6 +507,40 @@ export interface ElicitationRequest {
   raw?: unknown;
 }
 
+/** Grok `_x.ai/exit_plan_mode` (plan approval card). */
+export interface PlanApprovalRequest {
+  requestId: unknown;
+  sessionId?: string | null;
+  toolCallId?: string | null;
+  /** Plan markdown embedded in the request (preferred). */
+  planContent?: string | null;
+  raw?: unknown;
+}
+
+/** Grok `_x.ai/ask_user_question` (TUI question card). */
+export interface UserQuestionOption {
+  label: string;
+  description?: string | null;
+  preview?: string | null;
+}
+
+export interface UserQuestionItem {
+  question: string;
+  options: UserQuestionOption[];
+  /** When true, user may select multiple labels (joined with ", "). */
+  multiSelect?: boolean | null;
+  header?: string | null;
+}
+
+export interface UserQuestionRequest {
+  requestId: unknown;
+  sessionId?: string | null;
+  toolCallId?: string | null;
+  questions: UserQuestionItem[];
+  mode?: string | null;
+  raw?: unknown;
+}
+
 export interface ElicitationSchema {
   type?: string;
   properties?: Record<string, ElicitationProperty>;

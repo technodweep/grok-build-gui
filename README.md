@@ -21,6 +21,7 @@ Docs:
 
 - **[Changelog](CHANGELOG.md)** — v0.1.0 notes
 - **[Full feature parity plan](docs/full-parity-plan.md)** — phases A–I inventory
+- **[Multi-repository workspaces plan](docs/multi-repo-workspaces-plan.md)** — optional workspace dashboard, UI wireframes, runtime architecture, and delivery phases
 - [Architecture](docs/architecture.md)
 - [Shipped ACP surface checklist](docs/acp-surface.md)
 - [Packaging](docs/packaging.md)
