@@ -1,4 +1,4 @@
-import { type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import {
   disconnectAgent,
   getPlanModeState,
@@ -37,6 +37,19 @@ function modeColor(m: SessionMode): string {
       return "var(--gb-danger)";
   }
 }
+
+type BarBtn = {
+  key: string;
+  label: string;
+  title: string;
+  onClick: () => void;
+  disabled?: boolean;
+  primary?: boolean;
+  warn?: boolean;
+  accent?: boolean;
+  /** Keep visible even when the bar is compact. */
+  keep?: boolean;
+};
 
 export function StatusBar() {
   const status = useAppStore((s) => s.status);
@@ -84,6 +97,44 @@ export function StatusBar() {
   const setPlanMarkdown = useAppStore((s) => s.setPlanMarkdown);
   const setPlanModeState = useAppStore((s) => s.setPlanModeState);
   const setAlwaysApprove = useAppStore((s) => s.setAlwaysApprove);
+
+  const headerRef = useRef<HTMLElement>(null);
+  const [compact, setCompact] = useState(false);
+  const [narrow, setNarrow] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width ?? el.clientWidth;
+      setCompact(w < 1100);
+      setNarrow(w < 720);
+    });
+    ro.observe(el);
+    setCompact(el.clientWidth < 1100);
+    setNarrow(el.clientWidth < 720);
+    return () => ro.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
+        setMoreOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMoreOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [moreOpen]);
 
   const goHome = async () => {
     await disconnectAgent();
@@ -193,7 +244,6 @@ export function StatusBar() {
     if (!session || status !== "ready") return;
     const prev = sessionMode;
     setSessionMode(next);
-    // Track yolo locally for reconnect defaults; agent slash owns live permission mode.
     if (next === "yolo") setAlwaysApprove(true);
     else if (prev === "yolo") setAlwaysApprove(false);
 
@@ -219,15 +269,9 @@ export function StatusBar() {
     });
 
     if (!slash) return;
-    // Leaving plan via toggle: agent /plan toggles off when already pending/active.
     try {
-      if (!busy) {
-        setBusy(true);
-        await sendPrompt(slash);
-      } else {
-        // Queue-free path: still try; agent may accept mode changes mid-turn for some modes.
-        await sendPrompt(slash);
-      }
+      if (!busy) setBusy(true);
+      await sendPrompt(slash);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setSessionMode(prev);
@@ -260,74 +304,198 @@ export function StatusBar() {
     }
   };
 
-  const btn: CSSProperties = {
-    borderRadius: 6,
+  const runningTerms = terminals.filter((t) => t.running).length;
+  const activeJobs = automationJobs.filter((j) => j.status === "active").length;
+  const liveTasks = runningTerms + activeJobs;
+
+  const actionBtns: BarBtn[] = [];
+  if (session || terminals.length > 0 || automationJobs.length > 0) {
+    actionBtns.push({
+      key: "tasks",
+      label: liveTasks > 0 ? `Tasks (${liveTasks})` : "Tasks",
+      title: "Automation hub — tasks, loops, goals, workflows (/tasks)",
+      onClick: () => setAutomationOpen(true),
+      warn: liveTasks > 0,
+      keep: true,
+    });
+  }
+  if (session || terminals.length > 0) {
+    actionBtns.push({
+      key: "term",
+      label: terminals.length ? `Term (${terminals.length})` : "Term",
+      title: "Agent terminals (/terminal)",
+      onClick: () => setTerminalsOpen(!terminalsOpen),
+      accent: terminalsOpen,
+      warn: runningTerms > 0,
+      keep: true,
+    });
+  }
+  actionBtns.push(
+    {
+      key: "rules",
+      label: "Rules",
+      title: "Project rules (AGENTS.md) & custom models",
+      onClick: () => setProjectConfigOpen(true),
+    },
+    {
+      key: "help",
+      label: "Help",
+      title: "Help & docs (/docs, /help)",
+      onClick: () => setHelpOpen(true),
+    },
+    {
+      key: "shortcuts",
+      label: "?",
+      title: "Shortcuts (Ctrl+/)",
+      onClick: () => setShortcutsOpen(true),
+    },
+    {
+      key: "extensions",
+      label: "Extensions",
+      title: "Extensions hub — MCP, skills, plugins, hooks",
+      onClick: () => setExtensionsOpen(true),
+    },
+    {
+      key: "agents",
+      label: "Agents",
+      title: "Agents & personas (/agents, /personas)",
+      onClick: () => setAgentsOpen(true),
+    },
+    {
+      key: "memory",
+      label: "Memory",
+      title: "Memory & media (/memory)",
+      onClick: () => setMemoryOpen(true),
+    },
+    {
+      key: "account",
+      label: "Account",
+      title: "Account & safety — login, privacy, sandbox, doctor",
+      onClick: () => setAccountOpen(true),
+    },
+    {
+      key: "settings",
+      label: "Settings",
+      title: "Settings (Ctrl+,)",
+      onClick: () => setSettingsOpen(true),
+      keep: true,
+    },
+  );
+  if ((session || liveSessions.length > 0) && view !== "welcome") {
+    actionBtns.push({
+      key: "dashboard",
+      label: liveSessions.length ? `Dashboard (${liveSessions.length})` : "Dashboard",
+      title: "Multi-agent dashboard",
+      onClick: () => setView("dashboard"),
+      keep: true,
+    });
+  }
+  if (session) {
+    actionBtns.push(
+      {
+        key: "plan",
+        label: "Plan",
+        title: "View / edit plan.md (/view-plan)",
+        onClick: () => void openPlan(),
+        warn: sessionMode === "plan",
+        keep: true,
+      },
+      {
+        key: "compact",
+        label: "Compact",
+        title: "Compress context (/compact)",
+        onClick: () => void onCompact(),
+        disabled: busy || status !== "ready",
+      },
+      {
+        key: "rewind",
+        label: "Rewind",
+        title: "Undo last turn (/rewind)",
+        onClick: () => void onRewind(),
+        disabled: busy || status !== "ready",
+      },
+      {
+        key: "history",
+        label: "History",
+        title: "Prompt history (/history)",
+        onClick: () => setHistoryOpen(true),
+      },
+      {
+        key: "new",
+        label: "New",
+        title: "New session",
+        onClick: () => void onNew(),
+        keep: true,
+      },
+      {
+        key: "home",
+        label: "Home",
+        title: "Home",
+        onClick: () => void goHome(),
+        keep: true,
+      },
+    );
+  }
+
+  const visibleBtns = compact
+    ? actionBtns.filter((b) => b.keep)
+    : actionBtns;
+  const overflowBtns = compact
+    ? actionBtns.filter((b) => !b.keep)
+    : [];
+
+  const chip: CSSProperties = {
+    fontSize: 11,
     border: "1px solid var(--gb-border)",
-    background: "var(--gb-surface-overlay)",
-    color: "var(--gb-ink)",
-    padding: "4px 8px",
-    fontSize: 12,
+    borderRadius: 6,
+    background: "var(--gb-surface)",
+    color: "var(--gb-ink-muted)",
+    padding: "2px 8px",
     cursor: "pointer",
+    fontFamily: "ui-monospace, Menlo, monospace",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    whiteSpace: "nowrap",
+    maxWidth: "100%",
+    minWidth: 0,
   };
 
   return (
     <header
-      style={{
-        height: 48,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        borderBottom: "1px solid var(--gb-border)",
-        background: "var(--gb-surface-raised)",
-        padding: "0 16px",
-        color: "var(--gb-ink)",
-        flexShrink: 0,
-        gap: 8,
-      }}
+      ref={headerRef}
+      className="gb-statusbar"
+      data-compact={compact ? "1" : "0"}
+      data-narrow={narrow ? "1" : "0"}
     >
-      <div style={{ display: "flex", gap: 12, alignItems: "center", minWidth: 0, flex: 1 }}>
-        <span style={{ fontWeight: 600, fontSize: 14 }}>Grok Build</span>
-        <span
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            fontSize: 12,
-            color: "var(--gb-ink-muted)",
-          }}
-        >
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: 999,
-              background: statusColor,
-              display: "inline-block",
-            }}
-          />
-          {status}
-          {busy ? " · working" : null}
+      {/* Brand — never shrink or get painted over */}
+      <div className="gb-statusbar-brand" title={env?.binaryVersion ? `CLI ${env.binaryVersion}` : "Grok Build"}>
+        <span className="gb-statusbar-logo">Grok Build</span>
+        {env?.binaryVersion && !narrow ? (
+          <span className="gb-statusbar-version" title="CLI version">
+            {env.binaryVersion}
+          </span>
+        ) : null}
+      </div>
+
+      {/* Session meta chips */}
+      <div className="gb-statusbar-meta">
+        <span className="gb-statusbar-status" title={status + (busy ? " · working" : "")}>
+          <span className="gb-statusbar-dot" style={{ background: statusColor }} />
+          <span className="gb-statusbar-status-text">
+            {status}
+            {busy ? " · working" : ""}
+          </span>
         </span>
+
         {session || modelId ? (
           <button
             type="button"
             onClick={() => setModelsOpen(true)}
             title="Model & effort — click to change (/model, /effort)"
-            style={{
-              fontSize: 11,
-              color: "var(--gb-accent)",
-              fontFamily: "ui-monospace, Menlo, monospace",
-              border: "1px solid var(--gb-border)",
-              borderRadius: 6,
-              background: "var(--gb-surface)",
-              padding: "2px 8px",
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-            }}
+            style={{ ...chip, color: "var(--gb-accent)" }}
           >
-            <span>{modelId || "model"}</span>
+            <span className="gb-statusbar-ellipsis">{modelId || "model"}</span>
             {effort ? (
               <span style={{ color: "var(--gb-ink-muted)", textTransform: "capitalize" }}>
                 · {effort}
@@ -335,6 +503,7 @@ export function StatusBar() {
             ) : null}
           </button>
         ) : null}
+
         {session ? (
           <button
             type="button"
@@ -345,18 +514,14 @@ export function StatusBar() {
               setAccountOpen(true);
             }}
             disabled={status !== "ready"}
-            title="Cycle mode: Ask · Auto · Plan · Yolo. Right-click → permission three-way (Ask/Auto/Always)."
+            title="Cycle mode: Ask · Auto · Plan · Yolo. Right-click → permission settings."
             style={{
-              fontSize: 11,
+              ...chip,
               fontWeight: 600,
               color: modeColor(sessionMode),
-              fontFamily: "ui-monospace, Menlo, monospace",
-              border: `1px solid ${modeColor(sessionMode)}`,
-              borderRadius: 6,
-              background: "var(--gb-surface)",
-              padding: "2px 8px",
-              cursor: status !== "ready" ? "not-allowed" : "pointer",
+              borderColor: modeColor(sessionMode),
               opacity: status !== "ready" ? 0.5 : 1,
+              cursor: status !== "ready" ? "not-allowed" : "pointer",
               textTransform: "uppercase",
               letterSpacing: "0.04em",
             }}
@@ -364,6 +529,7 @@ export function StatusBar() {
             {modeLabel(sessionMode)}
           </button>
         ) : null}
+
         {used != null || usagePct != null ? (
           <button
             type="button"
@@ -373,26 +539,15 @@ export function StatusBar() {
                 ? `${turnHint}\nClick for context panel (/context)`
                 : "Context usage — click for details (/context)"
             }
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              border: "1px solid var(--gb-border)",
-              borderRadius: 6,
-              background: "var(--gb-surface)",
-              color: "var(--gb-ink-muted)",
-              fontSize: 11,
-              padding: "2px 8px",
-              cursor: "pointer",
-              fontFamily: "ui-monospace, Menlo, monospace",
-            }}
+            style={chip}
           >
             {usagePct != null ? (
               <span
                 style={{
-                  width: 36,
+                  width: 28,
                   height: 6,
                   borderRadius: 999,
+                  flexShrink: 0,
                   background: `linear-gradient(90deg, ${
                     usagePct >= 85
                       ? "var(--gb-danger)"
@@ -404,215 +559,89 @@ export function StatusBar() {
                 }}
               />
             ) : null}
-            {used != null ? `${used.toLocaleString()} tok` : ""}
-            {usagePct != null ? ` ${usagePct.toFixed(0)}%` : ""}
+            <span className="gb-statusbar-ellipsis">
+              {used != null ? `${used.toLocaleString()} tok` : ""}
+              {usagePct != null ? ` ${usagePct.toFixed(0)}%` : ""}
+            </span>
           </button>
         ) : session ? (
-          <button type="button" style={btn} onClick={openContext} title="Context / session info">
+          <button type="button" style={chip} onClick={openContext} title="Context / session info">
             Context
           </button>
         ) : null}
-        {session ? (
+
+        {session && !narrow ? (
           <span
-            style={{
-              fontFamily: "ui-monospace, Menlo, monospace",
-              fontSize: 11,
-              color: "var(--gb-ink-muted)",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              maxWidth: 280,
-            }}
+            className="gb-statusbar-cwd"
             title={`${session.cwd}\n${session.sessionId}`}
           >
             {session.cwd}
           </span>
         ) : null}
-      </div>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          fontSize: 12,
-          color: "var(--gb-ink-muted)",
-          flexShrink: 0,
-        }}
-      >
+
         {error ? (
-          <span
-            style={{
-              maxWidth: 160,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              color: "var(--gb-danger)",
-            }}
-            title={error}
-          >
+          <span className="gb-statusbar-error" title={error}>
             {error}
           </span>
         ) : null}
-        {env?.binaryVersion ? <span title="CLI version">{env.binaryVersion}</span> : null}
-        {session || terminals.length > 0 || automationJobs.length > 0 ? (
-          <button
-            type="button"
-            style={{
-              ...btn,
-              borderColor:
-                terminals.some((t) => t.running) ||
-                automationJobs.some((j) => j.status === "active")
-                  ? "var(--gb-warning)"
-                  : "var(--gb-border)",
-              color:
-                terminals.some((t) => t.running) ||
-                automationJobs.some((j) => j.status === "active")
-                  ? "var(--gb-warning)"
-                  : "var(--gb-ink)",
-            }}
-            onClick={() => setAutomationOpen(true)}
-            title="Automation hub — tasks, loops, goals, workflows (/tasks)"
-          >
-            Tasks
-            {terminals.filter((t) => t.running).length +
-              automationJobs.filter((j) => j.status === "active").length >
-            0
-              ? ` (${
-                  terminals.filter((t) => t.running).length +
-                  automationJobs.filter((j) => j.status === "active").length
-                })`
-              : ""}
-          </button>
-        ) : null}
-        {session || terminals.length > 0 ? (
-          <button
-            type="button"
-            style={{
-              ...btn,
-              borderColor: terminalsOpen ? "var(--gb-accent-dim)" : "var(--gb-border)",
-              color: terminals.some((t) => t.running)
-                ? "var(--gb-warning)"
-                : "var(--gb-ink)",
-            }}
-            onClick={() => setTerminalsOpen(!terminalsOpen)}
-            title="Agent terminals (/terminal)"
-          >
-            Term{terminals.length ? ` (${terminals.length})` : ""}
-          </button>
-        ) : null}
-        <button
-          type="button"
-          style={btn}
-          onClick={() => setProjectConfigOpen(true)}
-          title="Project rules (AGENTS.md) & custom models (/rules, /custom-models)"
-        >
-          Rules
-        </button>
-        <button
-          type="button"
-          style={btn}
-          onClick={() => setHelpOpen(true)}
-          title="Help & docs (/docs, /help)"
-        >
-          Help
-        </button>
-        <button type="button" style={btn} onClick={() => setShortcutsOpen(true)} title="Shortcuts (Ctrl+/)">
-          ?
-        </button>
-        <button
-          type="button"
-          style={btn}
-          onClick={() => setExtensionsOpen(true)}
-          title="Extensions hub — MCP, skills, plugins, hooks (/plugins)"
-        >
-          Extensions
-        </button>
-        <button
-          type="button"
-          style={btn}
-          onClick={() => setAgentsOpen(true)}
-          title="Agents & personas (/agents, /personas)"
-        >
-          Agents
-        </button>
-        <button
-          type="button"
-          style={btn}
-          onClick={() => setMemoryOpen(true)}
-          title="Memory & media — remember, browse, flush/dream, imagine (/memory)"
-        >
-          Memory
-        </button>
-        <button
-          type="button"
-          style={btn}
-          onClick={() => setAccountOpen(true)}
-          title="Account & safety — login, privacy, sandbox, doctor (/account)"
-        >
-          Account
-        </button>
-        <button type="button" style={btn} onClick={() => setSettingsOpen(true)} title="Settings (Ctrl+,)">
-          Settings
-        </button>
-        {(session || liveSessions.length > 0) && view !== "welcome" ? (
-          <button
-            type="button"
-            style={btn}
-            onClick={() => setView("dashboard")}
-            title="Multi-agent dashboard"
-          >
-            Dashboard{liveSessions.length ? ` (${liveSessions.length})` : ""}
-          </button>
-        ) : null}
-        {session ? (
-          <>
+      </div>
+
+      {/* Actions — wrap; secondary go to More when compact */}
+      <div className="gb-statusbar-actions">
+        {visibleBtns.map((b) => (
+          <BarButton key={b.key} btn={b} />
+        ))}
+        {overflowBtns.length > 0 ? (
+          <div className="gb-statusbar-more" ref={moreRef}>
             <button
               type="button"
-              style={{
-                ...btn,
-                borderColor:
-                  sessionMode === "plan" ? "var(--gb-warning)" : "var(--gb-border)",
-                color: sessionMode === "plan" ? "var(--gb-warning)" : "var(--gb-ink)",
-              }}
-              onClick={() => void openPlan()}
-              title="View / edit plan.md (/view-plan). Enter plan mode with /plan."
+              className="gb-statusbar-btn"
+              aria-expanded={moreOpen}
+              aria-haspopup="menu"
+              title="More actions"
+              onClick={() => setMoreOpen((v) => !v)}
             >
-              Plan
+              More ▾
             </button>
-            <button
-              type="button"
-              style={btn}
-              disabled={busy || status !== "ready"}
-              onClick={() => void onCompact()}
-              title="Compress context (/compact)"
-            >
-              Compact
-            </button>
-            <button
-              type="button"
-              style={btn}
-              disabled={busy || status !== "ready"}
-              onClick={() => void onRewind()}
-              title="Undo last turn (/rewind)"
-            >
-              Rewind
-            </button>
-            <button
-              type="button"
-              style={btn}
-              onClick={() => setHistoryOpen(true)}
-              title="Prompt history (/history)"
-            >
-              History
-            </button>
-            <button type="button" style={btn} onClick={() => void onNew()} title="New session">
-              New
-            </button>
-            <button type="button" style={btn} onClick={() => void goHome()} title="Home">
-              Home
-            </button>
-          </>
+            {moreOpen ? (
+              <div className="gb-statusbar-more-menu" role="menu">
+                {overflowBtns.map((b) => (
+                  <button
+                    key={b.key}
+                    type="button"
+                    role="menuitem"
+                    disabled={b.disabled}
+                    title={b.title}
+                    className="gb-statusbar-more-item"
+                    onClick={() => {
+                      setMoreOpen(false);
+                      if (!b.disabled) b.onClick();
+                    }}
+                  >
+                    {b.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
         ) : null}
       </div>
     </header>
+  );
+}
+
+function BarButton({ btn }: { btn: BarBtn }) {
+  return (
+    <button
+      type="button"
+      className="gb-statusbar-btn"
+      disabled={btn.disabled}
+      title={btn.title}
+      onClick={btn.onClick}
+      data-warn={btn.warn ? "1" : undefined}
+      data-accent={btn.accent ? "1" : undefined}
+    >
+      {btn.label}
+    </button>
   );
 }
