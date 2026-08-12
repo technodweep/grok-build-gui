@@ -7,13 +7,72 @@ cd "$ROOT"
 
 export PATH="${HOME}/.cargo/bin:${HOME}/.grok/bin:${PATH}"
 
-# Node 22 via fnm (optional)
-if [[ -x "${HOME}/snap/code/253/.local/share/fnm/fnm" ]]; then
-  export PATH="${HOME}/snap/code/253/.local/share/fnm:${PATH}"
-fi
+# Prefer Node ≥ 22 via fnm (official builds). Avoids broken Homebrew Node 19
+# that expects libicui18n.so.71 after ICU upgrades.
+for FNM_CAND in \
+  "${HOME}/.local/share/fnm/fnm" \
+  "${HOME}/.fnm/fnm" \
+  "${HOME}/snap/code/253/.local/share/fnm/fnm"
+do
+  if [[ -x "$FNM_CAND" ]]; then
+    export PATH="$(dirname "$FNM_CAND"):${PATH}"
+    break
+  fi
+done
 if command -v fnm >/dev/null 2>&1; then
   eval "$(fnm env)"
-  fnm use 22 2>/dev/null || true
+  fnm use 22 2>/dev/null || fnm use --install-if-missing 22 2>/dev/null || true
+fi
+
+# If still on Homebrew Node linked against an old ICU, put that ICU on the path.
+if command -v node >/dev/null 2>&1; then
+  if ! node -e "process.exit(0)" 2>/dev/null; then
+    for ICU_LIB in \
+      "${HOMEBREW_PREFIX:-/home/linuxbrew/.linuxbrew}/Cellar/icu4c/"*/lib \
+      /home/linuxbrew/.linuxbrew/Cellar/icu4c/71.1/lib
+    do
+      if [[ -e "${ICU_LIB}/libicui18n.so.71" ]]; then
+        export LD_LIBRARY_PATH="${ICU_LIB}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+        break
+      fi
+    done
+  fi
+fi
+
+if ! command -v node >/dev/null 2>&1 || ! node -e "process.exit(0)" 2>/dev/null; then
+  cat <<'EOF' >&2
+ERROR: Node.js is missing or cannot start (often: libicui18n.so.71 not found).
+
+Your PATH may be using an old Homebrew Node that needs ICU 71.
+
+Fix (recommended) — install Node 22 with fnm:
+
+  curl -fsSL https://fnm.vercel.app/install | bash
+  # restart shell or:  eval "$(fnm env)"
+  fnm install 22
+  fnm use 22
+  fnm default 22
+  node -v   # should be v22.x
+
+Or upgrade Homebrew Node:
+
+  brew upgrade node
+
+Then re-run:  pnpm dev
+EOF
+  exit 1
+fi
+
+NODE_MAJOR="$(node -p "process.versions.node.split('.')[0]" 2>/dev/null || echo 0)"
+if [[ "${NODE_MAJOR}" -lt 22 ]]; then
+  cat <<EOF >&2
+ERROR: Node.js ${NODE_MAJOR} is too old (need ≥ 22). Current: $(node -v 2>/dev/null)
+
+  fnm install 22 && fnm use 22 && fnm default 22
+  # or: brew upgrade node
+
+EOF
+  exit 1
 fi
 
 # Prefer system pkg-config when -dev packages are installed.
