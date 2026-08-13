@@ -1,6 +1,6 @@
 # Packaging & release
 
-Grok Build GUI is packaged with **Tauri 2** bundlers.
+KayG is packaged with **Tauri 2** bundlers.
 
 ## Version alignment
 
@@ -245,13 +245,13 @@ See [Tauri updater](https://v2.tauri.app/plugin/updater/). Until then, users dow
 
 ```bash
 # Rust unit tests (always)
-cargo test -p grok-build-gui
+cargo test -p kayg
 
 # Frontend pure-helper tests (vitest)
 pnpm --dir apps/desktop test
 
 # Live agent integration (spawns real `grok agent stdio`)
-GROK_GUI_INTEGRATION=1 cargo test -p grok-build-gui --test integration_agent -- --nocapture
+KAYG_INTEGRATION=1 cargo test -p kayg --test integration_agent -- --nocapture
 ```
 
 ## Tagging a release

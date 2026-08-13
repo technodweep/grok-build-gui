@@ -1,4 +1,4 @@
-# Grok Build GUI — Full Feature Parity Plan
+# KayG — Grok Build CLI Feature Parity Plan
 
 **Goal:** Make this desktop app a first-class **GUI for everything you can do with Grok Build**, without reimplementing the agent.
 
@@ -222,7 +222,7 @@
 | Linux packages | **Done** | deb / AppImage / rpm |
 | macOS / Windows CI matrix | **Done** | Unsigned CI builds |
 | Code signing / notarization | **Done** | Docs + optional CI secrets (unsigned by default) |
-| Integration tests vs live CLI | **Done** | `GROK_GUI_INTEGRATION=1` + unit tests |
+| Integration tests vs live CLI | **Done** | `KAYG_INTEGRATION=1` + unit tests |
 | Unit tests (pure Rust) | **Partial** | Expand coverage |
 | Architecture docs refresh | **Partial** | Some MVP notes outdated |
 
@@ -422,7 +422,7 @@ Build in vertical slices that stay shippable. Each phase ends with: checklist up
 
 | ID | Work item | Approach |
 |----|-----------|----------|
-| I1 | **Integration tests** | Spawn real `grok` when `GROK_GUI_INTEGRATION=1` |
+| I1 | **Integration tests** | Spawn real `grok` when `KAYG_INTEGRATION=1` |
 | I2 | **Expand unit tests** | Models parse, session index, export, stream batch helpers |
 | I3 | **macOS notarization** | Secrets + docs |
 | I4 | **Windows code signing** | |
@@ -432,7 +432,7 @@ Build in vertical slices that stay shippable. Each phase ends with: checklist up
 | I8 | **i18n (optional)** | Not required for v1 parity |
 
 **Phase I status (2026-08-05):** Implemented (I8 skipped for v1).
-- Integration: `tests/integration_agent.rs` gated by `GROK_GUI_INTEGRATION=1`
+- Integration: `tests/integration_agent.rs` gated by `KAYG_INTEGRATION=1`
 - Unit: Rust models/session + vitest for export, text, mediaPaths, toolContent, streamBatch, contextEstimate
 - Signing: packaging.md secrets tables; release.yml optional Apple/Windows sign+notarize when secrets present
 - Auto-update: documented path only (not enabled)

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build Grok Build GUI Linux packages (deb / AppImage / rpm via Tauri).
+# Build KayG Linux packages (deb / AppImage / rpm via Tauri).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

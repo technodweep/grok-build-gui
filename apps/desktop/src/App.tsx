@@ -353,7 +353,7 @@ export default function App() {
             setView("chat");
             if (appProbablyBackground()) {
               void notify(
-                "Grok Build · Agent disconnected",
+                "KayG · Agent disconnected",
                 "Session kept — open the app to Resume or start a new session.",
               );
             }
@@ -601,11 +601,11 @@ export default function App() {
         const body = "Grok is waiting for you to approve a tool action.";
         // Always notify when backgrounded; also notify if user is on dashboard.
         if (appProbablyBackground() || useAppStore.getState().view === "dashboard") {
-          void notify(`Grok Build · ${title}`, body);
+          void notify(`KayG · ${title}`, body);
         } else {
           // Soft notify even when focused if more than one pending.
           if (useAppStore.getState().permissions.length >= 1) {
-            void notify(`Grok Build · ${title}`, body);
+            void notify(`KayG · ${title}`, body);
           }
         }
       }),
@@ -617,7 +617,7 @@ export default function App() {
         enqueueElicitation(req);
         const title = req.message?.slice(0, 80) || "Input required";
         if (appProbablyBackground() || useAppStore.getState().view === "dashboard") {
-          void notify(`Grok Build · ${title}`, "Answer the form to continue.");
+          void notify(`KayG · ${title}`, "Answer the form to continue.");
         }
       }),
     );
@@ -628,7 +628,7 @@ export default function App() {
         enqueueUserQuestion(req);
         const title = req.questions[0]?.question?.slice(0, 80) || "Question from agent";
         if (appProbablyBackground() || useAppStore.getState().view === "dashboard") {
-          void notify(`Grok Build · ${title}`, "Choose an answer to continue.");
+          void notify(`KayG · ${title}`, "Choose an answer to continue.");
         }
       }),
     );
@@ -639,7 +639,7 @@ export default function App() {
         enqueuePlanApproval(req);
         if (appProbablyBackground() || useAppStore.getState().view === "dashboard") {
           void notify(
-            "Grok Build · Plan approval",
+            "KayG · Plan approval",
             "Approve, request changes, or quit plan mode.",
           );
         }
@@ -658,8 +658,8 @@ export default function App() {
           const code = ev.payload.exitCode;
           const ok = code === 0 || code == null;
           const title = ok
-            ? "Grok Build · Task completed"
-            : "Grok Build · Task failed";
+            ? "KayG · Task completed"
+            : "KayG · Task failed";
           const body = `${ev.payload.command.slice(0, 80)}${
             code != null ? ` · exit ${code}` : ""
           }`;

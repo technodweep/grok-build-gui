@@ -35,19 +35,19 @@ echo "==> Frontend build"
 pnpm --dir apps/desktop build
 
 echo "==> cargo fmt"
-cargo fmt -p grok-build-gui -- --check
+cargo fmt -p kayg -- --check
 
 echo "==> cargo test"
-cargo test -p grok-build-gui
+cargo test -p kayg
 
-if [[ "${GROK_GUI_INTEGRATION:-}" == "1" || "${GROK_GUI_INTEGRATION:-}" == "true" ]]; then
+if [[ "${KAYG_INTEGRATION:-}" == "1" || "${KAYG_INTEGRATION:-}" == "true" ]]; then
   echo "==> Live agent integration tests"
-  cargo test -p grok-build-gui --test integration_agent -- --nocapture
+  cargo test -p kayg --test integration_agent -- --nocapture
 else
-  echo "==> Skipping live agent integration (set GROK_GUI_INTEGRATION=1 to enable)"
+  echo "==> Skipping live agent integration (set KAYG_INTEGRATION=1 to enable)"
 fi
 
 echo "==> cargo clippy"
-cargo clippy -p grok-build-gui --all-targets -- -D warnings
+cargo clippy -p kayg --all-targets -- -D warnings
 
 echo "All local CI checks passed."

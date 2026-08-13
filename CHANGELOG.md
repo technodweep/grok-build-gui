@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to **Grok Build GUI** are documented here.
+All notable changes to **KayG** are documented here.
 
 ## [0.1.0] — 2026-08-05
 
@@ -57,7 +57,7 @@ First public-ready desktop release: full TUI/product parity plan phases **A–I*
 ### Quality
 
 - Unit tests (Rust + vitest)
-- Optional live agent integration: `GROK_GUI_INTEGRATION=1`
+- Optional live agent integration: `KAYG_INTEGRATION=1`
 - Modal a11y (focus trap, Esc, ARIA)
 - CI: typecheck, tests, clippy; release matrix Linux / macOS / Windows
 - Optional signing secrets documented for notarization / Authenticode

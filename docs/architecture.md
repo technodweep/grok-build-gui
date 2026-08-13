@@ -1,6 +1,6 @@
 # Architecture
 
-Grok Build GUI is a **Tauri 2** desktop client that talks to the existing **Grok CLI agent** over the [Agent Client Protocol (ACP)](https://agentclientprotocol.com).
+KayG is an independent **Tauri 2** desktop client compatible with the existing **Grok Build CLI agent** over the [Agent Client Protocol (ACP)](https://agentclientprotocol.com).
 
 ```
 UI (React)  ──invoke/events──►  Rust (Tauri)  ──JSON-RPC stdio──►  grok agent stdio
@@ -34,7 +34,7 @@ Packaging & signing: **[packaging.md](./packaging.md)**.
 | `apps/desktop/src-tauri/src/session` | Disk session index, history, signals, subagents, plan.md |
 | `apps/desktop/src` | React UI (chat, hubs, composer, dashboard, settings) |
 | `apps/desktop/src/shared` | Store, API, export, stream batch, a11y, media helpers |
-| `apps/desktop/src-tauri/tests` | Optional live-agent integration (`GROK_GUI_INTEGRATION=1`) |
+| `apps/desktop/src-tauri/tests` | Optional live-agent integration (`KAYG_INTEGRATION=1`) |
 
 ## Runtime flow
 
@@ -66,7 +66,7 @@ Interactive GUI defaults to **ask** (no `--always-approve`). Users can choose As
 
 | Layer | Command |
 |-------|---------|
-| Rust unit | `cargo test -p grok-build-gui` |
+| Rust unit | `cargo test -p kayg` |
 | Frontend helpers | `pnpm --dir apps/desktop test` |
-| Live agent | `GROK_GUI_INTEGRATION=1 cargo test -p grok-build-gui --test integration_agent` |
+| Live agent | `KAYG_INTEGRATION=1 cargo test -p kayg --test integration_agent` |
 | Local CI mirror | `./scripts/ci-local.sh` |

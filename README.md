@@ -1,8 +1,13 @@
-# Grok Build GUI
+# KayG
 
-Native desktop GUI for [Grok Build](https://x.ai) — a **Tauri 2** app that spawns `grok agent stdio` and speaks the [Agent Client Protocol (ACP)](https://agentclientprotocol.com).
+<img src="assets/branding/kayg-logo.svg" alt="KayG logo" width="160" />
+
+KayG is an independent, open-source desktop GUI compatible with the [Grok Build CLI](https://docs.x.ai/build/overview). If you are looking for a Grok desktop experience on Linux, macOS, or Windows, KayG provides a native **Tauri 2** client that connects to `grok agent stdio` over the [Agent Client Protocol (ACP)](https://agentclientprotocol.com).
 
 The CLI agent remains the brain (auth, tools, MCP, sessions). This app is the visual shell.
+
+> [!IMPORTANT]
+> KayG is an independent community project. It is not affiliated with, endorsed by, or sponsored by xAI. Grok and Grok Build are trademarks of xAI.
 
 ## Features
 
@@ -121,7 +126,7 @@ scripts/               Local CI + Linux build helpers
 | `GROK_HOME` | Override Grok config/session root (default `~/.grok`) |
 | `GROK_BINARY` | Path to `grok` binary |
 | `XAI_API_KEY` | API key auth (optional if browser auth exists) |
-| `RUST_LOG` | Tracing filter (e.g. `info,grok_build_gui_lib=debug`) |
+| `RUST_LOG` | Tracing filter (e.g. `info,kayg_lib=debug`) |
 
 GUI settings (theme, binary override, last project) live in `~/.grok/gui/settings.json`.
 

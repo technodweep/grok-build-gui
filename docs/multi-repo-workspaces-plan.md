@@ -139,8 +139,8 @@ The current initial page remains structurally and behaviorally unchanged. It sti
 │                                                        [Workspaces]          │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
-│                              Grok Build                                      │
-│             Desktop GUI for Grok Build and ACP sessions.                    │
+│                                 KayG                                         │
+│      Independent desktop client for Grok Build CLI and ACP sessions.        │
 │                                                                              │
 │  ┌────────────────────────────────────────────────────────────────────────┐  │
 │  │ Binary: /home/user/.grok/bin/grok                                    │  │

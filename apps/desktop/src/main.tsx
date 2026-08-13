@@ -11,7 +11,7 @@ if (!rootEl) {
 } else {
   // Visible immediately so a blank webview is distinguishable from "React hung"
   rootEl.innerHTML =
-    '<div style="height:100%;display:flex;align-items:center;justify-content:center;background:#0c0e12;color:#8b95a8;font-family:system-ui,sans-serif">Starting Grok Build…</div>';
+    '<div style="height:100%;display:flex;align-items:center;justify-content:center;background:#0c0e12;color:#8b95a8;font-family:system-ui,sans-serif">Starting KayG…</div>';
 
   ReactDOM.createRoot(rootEl).render(
     <React.StrictMode>

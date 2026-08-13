@@ -469,8 +469,8 @@ export function StatusBar() {
       data-narrow={narrow ? "1" : "0"}
     >
       {/* Brand — never shrink or get painted over */}
-      <div className="gb-statusbar-brand" title={env?.binaryVersion ? `CLI ${env.binaryVersion}` : "Grok Build"}>
-        <span className="gb-statusbar-logo">Grok Build</span>
+      <div className="gb-statusbar-brand" title={env?.binaryVersion ? `Grok CLI ${env.binaryVersion}` : "KayG"}>
+        <span className="gb-statusbar-logo">KayG</span>
         {env?.binaryVersion && !narrow ? (
           <span className="gb-statusbar-version" title="CLI version">
             {env.binaryVersion}

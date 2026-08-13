@@ -178,10 +178,11 @@ export function Welcome({ env }: { env: EnvironmentInfo }) {
   return (
     <div style={page}>
       <div style={{ maxWidth: 640, width: "100%", textAlign: "center" }}>
-        <h1 style={{ margin: 0, fontSize: 28, fontWeight: 600 }}>Grok Build</h1>
+        <h1 style={{ margin: 0, fontSize: 28, fontWeight: 600 }}>KayG</h1>
         <p style={{ marginTop: 8, color: "#8b95a8", fontSize: 14, lineHeight: 1.5 }}>
-          Desktop GUI for Grok Build. Spawns <code style={{ color: "#7c9cff" }}>grok agent stdio</code>{" "}
-          and streams ACP sessions into a native chat shell.
+          Independent desktop client compatible with the Grok Build CLI. Connects to{" "}
+          <code style={{ color: "#7c9cff" }}>grok agent stdio</code> and streams ACP sessions into
+          a native chat shell.
         </p>
       </div>
 

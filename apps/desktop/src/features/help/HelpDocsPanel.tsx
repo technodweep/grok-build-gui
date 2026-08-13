@@ -17,10 +17,12 @@ type SectionId =
 const SECTIONS: { id: SectionId; title: string; body: string }[] = [
   {
     id: "overview",
-    title: "What is Grok Build GUI?",
-    body: `This desktop app is a GUI client for Grok Build. It does not reimplement the agent — it speaks ACP over \`grok agent stdio\`.
+    title: "What is KayG?",
+    body: `KayG is an independent, open-source desktop client compatible with the Grok Build CLI. It does not reimplement the agent — it speaks ACP over \`grok agent stdio\`.
 
-Install the CLI separately (\`curl -fsSL https://x.ai/cli/install.sh | bash\`), then open a project folder from the welcome screen.`,
+Install the CLI separately (\`curl -fsSL https://x.ai/cli/install.sh | bash\`), then open a project folder from the welcome screen.
+
+KayG is a community project and is not affiliated with, endorsed by, or sponsored by xAI. Grok and Grok Build are trademarks of xAI.`,
   },
   {
     id: "chat",
@@ -121,7 +123,7 @@ export function HelpDocsPanel() {
       open={open}
       onClose={() => setOpen(false)}
       title="Help & docs"
-      description="In-app guide for Grok Build GUI (parity with TUI workflows)"
+      description="In-app guide for KayG and its Grok Build CLI workflows"
       wide
     >
       <div

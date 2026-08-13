@@ -1,6 +1,6 @@
-# Grok Build — desktop app
+# KayG desktop app
 
-Tauri 2 + React frontend for Grok Build GUI.
+Tauri 2 + React frontend for KayG, an independent desktop client compatible with the Grok Build CLI.
 
 From this directory:
 

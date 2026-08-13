@@ -1341,29 +1341,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "grok-build-gui"
-version = "0.1.0"
-dependencies = [
- "base64 0.22.1",
- "dirs",
- "parking_lot",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-notification",
- "tauri-plugin-opener",
- "thiserror 2.0.19",
- "tokio",
- "toml 0.8.2",
- "toml_edit 0.22.27",
- "tracing",
- "tracing-subscriber",
- "which",
-]
-
-[[package]]
 name = "gtk"
 version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1847,6 +1824,29 @@ checksum = "5dea2b27dd239b2556ed7a25ba842fe47fd602e7fc7433c2a8d6106d4d9edd70"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "kayg"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "dirs",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-notification",
+ "tauri-plugin-opener",
+ "thiserror 2.0.19",
+ "tokio",
+ "toml 0.8.2",
+ "toml_edit 0.22.27",
+ "tracing",
+ "tracing-subscriber",
+ "which",
 ]
 
 [[package]]

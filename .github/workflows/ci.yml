@@ -74,13 +74,13 @@ jobs:
           workspaces: ". -> target"
 
       - name: Format
-        run: cargo fmt -p grok-build-gui -- --check
+        run: cargo fmt -p kayg -- --check
 
       - name: Test
-        run: cargo test -p grok-build-gui
+        run: cargo test -p kayg
 
       - name: Clippy
-        run: cargo clippy -p grok-build-gui --all-targets -- -D warnings
+        run: cargo clippy -p kayg --all-targets -- -D warnings
 
   # Full release bundle is heavy; run on tags only (see release.yml).
   # Smoke: ensure the crate links in release mode without packaging.
@@ -123,4 +123,4 @@ jobs:
         run: pnpm build
 
       - name: Cargo build --release
-        run: cargo build -p grok-build-gui --release
+        run: cargo build -p kayg --release

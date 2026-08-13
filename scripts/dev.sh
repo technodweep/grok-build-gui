@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Launch Grok Build GUI in dev mode with GTK/WebKit build env for this machine.
+# Launch KayG in dev mode with GTK/WebKit build env for this machine.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
