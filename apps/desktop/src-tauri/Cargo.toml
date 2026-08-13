@@ -1,8 +1,8 @@
 [package]
 name = "kayg"
 version = "0.1.0"
-description = "Independent desktop client compatible with the Grok Build CLI over ACP"
-authors = ["technodweep"]
+description = "Independent desktop client from Technodweep, compatible with the Grok Build CLI over ACP"
+authors = ["Technodweep"]
 edition = "2021"
 
 [lib]

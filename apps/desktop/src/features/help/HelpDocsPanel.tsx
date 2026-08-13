@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { ModalShell } from "../../shared/ModalShell";
+import { openExternal } from "../../shared/openExternal";
 import { useAppStore } from "../../shared/store";
 
 type SectionId =
@@ -18,7 +19,7 @@ const SECTIONS: { id: SectionId; title: string; body: string }[] = [
   {
     id: "overview",
     title: "What is KayG?",
-    body: `KayG is an independent, open-source desktop client compatible with the Grok Build CLI. It does not reimplement the agent — it speaks ACP over \`grok agent stdio\`.
+    body: `KayG is an independent, open-source desktop client from Technodweep, compatible with the Grok Build CLI. It does not reimplement the agent — it speaks ACP over \`grok agent stdio\`.
 
 Install the CLI separately (\`curl -fsSL https://x.ai/cli/install.sh | bash\`), then open a project folder from the welcome screen.
 
@@ -110,12 +111,7 @@ export function HelpDocsPanel() {
   const current = SECTIONS.find((s) => s.id === section) ?? SECTIONS[0];
 
   const openOnline = async () => {
-    try {
-      const { openUrl } = await import("@tauri-apps/plugin-opener");
-      await openUrl("https://docs.x.ai/build/overview");
-    } catch {
-      window.open("https://docs.x.ai/build/overview", "_blank");
-    }
+    await openExternal("https://docs.x.ai/build/overview");
   };
 
   return (
@@ -177,6 +173,15 @@ export function HelpDocsPanel() {
           >
             {current.body}
           </div>
+          {section === "overview" ? (
+            <button
+              type="button"
+              style={{ ...btn, marginTop: 18, color: "#ff665a", fontWeight: 600 }}
+              onClick={() => void openExternal("https://www.technodweep.com/")}
+            >
+              A Technodweep company ↗
+            </button>
+          ) : null}
         </article>
       </div>
     </ModalShell>

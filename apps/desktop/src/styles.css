@@ -208,15 +208,29 @@ body {
 
 .gb-statusbar-brand {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 1px;
+  align-items: center;
+  gap: 7px;
   flex: 0 0 auto;
-  min-width: 5.5rem;
-  max-width: 9rem;
+  min-width: 7rem;
+  max-width: 11rem;
   line-height: 1.15;
   z-index: 2;
   position: relative;
+}
+
+.gb-statusbar-mark {
+  display: block;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+}
+
+.gb-statusbar-brand-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
 }
 
 .gb-statusbar-logo {
@@ -393,8 +407,13 @@ body {
 }
 
 .gb-statusbar[data-narrow="1"] .gb-statusbar-brand {
-  min-width: 4.5rem;
-  max-width: 6.5rem;
+  min-width: 5.25rem;
+  max-width: 7rem;
+}
+
+.gb-statusbar[data-narrow="1"] .gb-statusbar-mark {
+  width: 24px;
+  height: 24px;
 }
 
 .gb-statusbar[data-narrow="1"] .gb-statusbar-logo {

@@ -6,6 +6,7 @@ import {
   getGuiSettings,
   sendPrompt,
 } from "../../shared/api";
+import { openExternal } from "../../shared/openExternal";
 import { nextId, useAppStore } from "../../shared/store";
 import type { EnvironmentInfo, PermissionPolicy } from "../../shared/types";
 import { SessionList } from "./SessionList";
@@ -178,8 +179,55 @@ export function Welcome({ env }: { env: EnvironmentInfo }) {
   return (
     <div style={page}>
       <div style={{ maxWidth: 640, width: "100%", textAlign: "center" }}>
-        <h1 style={{ margin: 0, fontSize: 28, fontWeight: 600 }}>KayG</h1>
-        <p style={{ marginTop: 8, color: "#8b95a8", fontSize: 14, lineHeight: 1.5 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 18,
+          }}
+        >
+          <img
+            src="/kayg-logo.svg"
+            alt="KayG logo"
+            width={104}
+            height={104}
+            draggable={false}
+            style={{ display: "block", flex: "0 0 auto" }}
+          />
+          <div style={{ textAlign: "left" }}>
+            <h1
+              style={{
+                margin: 0,
+                fontSize: 38,
+                fontWeight: 700,
+                letterSpacing: "-0.035em",
+                lineHeight: 1,
+              }}
+            >
+              KayG
+            </h1>
+            <button
+              type="button"
+              onClick={() => void openExternal("https://www.technodweep.com/")}
+              title="Visit Technodweep"
+              aria-label="KayG is a Technodweep company — visit technodweep.com"
+              style={{
+                margin: "9px 0 0",
+                padding: 0,
+                border: 0,
+                background: "transparent",
+                color: "#8b95a8",
+                cursor: "pointer",
+                fontSize: 12,
+                letterSpacing: "0.02em",
+              }}
+            >
+              A <span style={{ color: "#ff665a", fontWeight: 700 }}>Technodweep</span> company ↗
+            </button>
+          </div>
+        </div>
+        <p style={{ marginTop: 16, color: "#8b95a8", fontSize: 14, lineHeight: 1.5 }}>
           Independent desktop client compatible with the Grok Build CLI. Connects to{" "}
           <code style={{ color: "#7c9cff" }}>grok agent stdio</code> and streams ACP sessions into
           a native chat shell.

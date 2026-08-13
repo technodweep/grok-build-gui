@@ -470,12 +470,22 @@ export function StatusBar() {
     >
       {/* Brand — never shrink or get painted over */}
       <div className="gb-statusbar-brand" title={env?.binaryVersion ? `Grok CLI ${env.binaryVersion}` : "KayG"}>
-        <span className="gb-statusbar-logo">KayG</span>
-        {env?.binaryVersion && !narrow ? (
-          <span className="gb-statusbar-version" title="CLI version">
-            {env.binaryVersion}
-          </span>
-        ) : null}
+        <img
+          className="gb-statusbar-mark"
+          src="/kayg-logo.svg"
+          alt=""
+          width={30}
+          height={30}
+          draggable={false}
+        />
+        <span className="gb-statusbar-brand-copy">
+          <span className="gb-statusbar-logo">KayG</span>
+          {env?.binaryVersion && !narrow ? (
+            <span className="gb-statusbar-version" title="Grok CLI version">
+              {env.binaryVersion}
+            </span>
+          ) : null}
+        </span>
       </div>
 
       {/* Session meta chips */}

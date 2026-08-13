@@ -2,7 +2,13 @@
   "name": "kayg",
   "private": true,
   "version": "0.1.0",
-  "description": "Independent open-source desktop client compatible with the Grok Build CLI",
+  "description": "Independent open-source desktop client from Technodweep, compatible with the Grok Build CLI",
+  "author": "Technodweep",
+  "homepage": "https://www.technodweep.com/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/technodweep/kayg.git"
+  },
   "scripts": {
     "dev": "./scripts/dev.sh",
     "dev:raw": "pnpm --dir apps/desktop tauri dev",

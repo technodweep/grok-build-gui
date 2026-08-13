@@ -29,12 +29,12 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "publisher": "technodweep",
+    "publisher": "Technodweep",
     "category": "DeveloperTool",
-    "shortDescription": "Independent desktop client compatible with the Grok Build CLI",
-    "longDescription": "KayG is an independent, open-source desktop coding-agent client compatible with the Grok Build CLI. It connects to grok agent stdio over the Agent Client Protocol and requires the Grok CLI to be installed separately.",
-    "copyright": "Copyright © 2026 technodweep",
-    "homepage": "https://github.com/technodweep/kayg",
+    "shortDescription": "Technodweep desktop client compatible with the Grok Build CLI",
+    "longDescription": "KayG is an independent, open-source desktop coding-agent client from Technodweep, compatible with the Grok Build CLI. It connects to grok agent stdio over the Agent Client Protocol and requires the Grok CLI to be installed separately.",
+    "copyright": "Copyright © 2026 Technodweep",
+    "homepage": "https://www.technodweep.com/",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

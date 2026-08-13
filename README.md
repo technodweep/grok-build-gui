@@ -2,7 +2,9 @@
 
 <img src="assets/branding/kayg-logo.svg" alt="KayG logo" width="160" />
 
-KayG is an independent, open-source desktop GUI compatible with the [Grok Build CLI](https://docs.x.ai/build/overview). If you are looking for a Grok desktop experience on Linux, macOS, or Windows, KayG provides a native **Tauri 2** client that connects to `grok agent stdio` over the [Agent Client Protocol (ACP)](https://agentclientprotocol.com).
+[A Technodweep company](https://www.technodweep.com/)
+
+KayG is an independent, open-source desktop GUI from [Technodweep](https://www.technodweep.com/), compatible with the [Grok Build CLI](https://docs.x.ai/build/overview). If you are looking for a Grok desktop experience on Linux, macOS, or Windows, KayG provides a native **Tauri 2** client that connects to `grok agent stdio` over the [Agent Client Protocol (ACP)](https://agentclientprotocol.com).
 
 The CLI agent remains the brain (auth, tools, MCP, sessions). This app is the visual shell.
 
