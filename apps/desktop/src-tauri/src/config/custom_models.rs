@@ -181,7 +181,7 @@ fn read_config_doc() -> AppResult<DocumentMut> {
             fs::create_dir_all(parent)
                 .map_err(|e| AppError::Message(format!("create home: {e}")))?;
         }
-        fs::write(&path, "# Grok config — managed in part by Grok Build GUI\n")
+        fs::write(&path, "# Grok config — managed in part by KayG\n")
             .map_err(|e| AppError::Message(format!("create config: {e}")))?;
     }
     let raw = fs::read_to_string(&path)

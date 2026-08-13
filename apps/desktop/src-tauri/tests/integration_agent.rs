@@ -2,7 +2,7 @@
 //!
 //! Run with:
 //! ```bash
-//! GROK_GUI_INTEGRATION=1 cargo test -p grok-build-gui --test integration_agent -- --nocapture
+//! KAYG_INTEGRATION=1 cargo test -p kayg --test integration_agent -- --nocapture
 //! ```
 //!
 //! Requires a working `grok` binary on PATH (or `GROK_BINARY`) and preferably
@@ -13,7 +13,7 @@ use std::time::Duration;
 
 fn enabled() -> bool {
     matches!(
-        std::env::var("GROK_GUI_INTEGRATION")
+        std::env::var("KAYG_INTEGRATION")
             .unwrap_or_default()
             .to_lowercase()
             .as_str(),
@@ -22,7 +22,7 @@ fn enabled() -> bool {
 }
 
 fn skip_msg() {
-    eprintln!("skip: set GROK_GUI_INTEGRATION=1 to run live agent tests");
+    eprintln!("skip: set KAYG_INTEGRATION=1 to run live agent tests");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -33,7 +33,7 @@ async fn integrate_authenticate_cached() {
     }
     let result = tokio::time::timeout(
         Duration::from_secs(45),
-        grok_build_gui_lib::test_support::authenticate_cached(None),
+        kayg_lib::test_support::authenticate_cached(None),
     )
     .await;
     match result {
@@ -62,7 +62,7 @@ async fn integrate_list_sessions_ephemeral() {
     let cwd = std::env::temp_dir().to_string_lossy().to_string();
     let result = tokio::time::timeout(
         Duration::from_secs(60),
-        grok_build_gui_lib::test_support::list_sessions_ephemeral(Some(&cwd), None),
+        kayg_lib::test_support::list_sessions_ephemeral(Some(&cwd), None),
     )
     .await;
     match result {

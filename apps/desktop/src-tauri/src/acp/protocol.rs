@@ -122,7 +122,7 @@ pub fn initialize_params() -> Value {
             }
         },
         "clientInfo": {
-            "name": "grok-build-gui",
+            "name": "kayg",
             "version": env!("CARGO_PKG_VERSION")
         },
         // Advertise interactive ask_user_question support (Grok TUI question card parity).

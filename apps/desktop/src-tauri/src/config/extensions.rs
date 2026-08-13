@@ -363,7 +363,7 @@ fn write_trusted_folders(folders: &[TrustedFolder]) -> AppResult<()> {
     // Comment header
     let body = format!(
         "# Grok folder trust — project hooks, MCP, and LSP require trust.\n\
-         # Edited by Grok Build GUI. Paths cascade to subdirectories.\n\n{}",
+         # Edited by KayG. Paths cascade to subdirectories.\n\n{}",
         doc
     );
     fs::write(&path, body).map_err(|e| AppError::Message(format!("write trusted_folders: {e}")))?;
@@ -606,7 +606,7 @@ fn read_config_doc() -> AppResult<DocumentMut> {
         }
         fs::write(
             &path,
-            "# Grok config — managed in part by Grok Build GUI\n",
+            "# Grok config — managed in part by KayG\n",
         )
         .map_err(|e| AppError::Message(format!("create config.toml: {e}")))?;
     }

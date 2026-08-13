@@ -205,13 +205,72 @@ function LabelRow({
   );
 }
 
-function detailsOpen(
-  policy: "default" | "all-open" | "all-closed",
+type FoldPolicy = "default" | "all-open" | "all-closed";
+
+type ToolScrollItem = Extract<ScrollItem, { kind: "tool" }>;
+
+type DisplayRow =
+  | { kind: "single"; itemIndex: number; item: ScrollItem }
+  | { kind: "tools"; itemIndices: number[]; tools: ToolScrollItem[] };
+
+/** Consecutive tools become one group when 2+ appear back-to-back. */
+function buildDisplayRows(items: ScrollItem[]): DisplayRow[] {
+  const rows: DisplayRow[] = [];
+  let i = 0;
+  while (i < items.length) {
+    const it = items[i]!;
+    if (it.kind === "tool") {
+      const tools: ToolScrollItem[] = [];
+      const indices: number[] = [];
+      while (i < items.length && items[i]!.kind === "tool") {
+        tools.push(items[i] as ToolScrollItem);
+        indices.push(i);
+        i += 1;
+      }
+      if (tools.length === 1) {
+        rows.push({ kind: "single", itemIndex: indices[0]!, item: tools[0]! });
+      } else {
+        rows.push({ kind: "tools", itemIndices: indices, tools });
+      }
+    } else {
+      rows.push({ kind: "single", itemIndex: i, item: it });
+      i += 1;
+    }
+  }
+  return rows;
+}
+
+/**
+ * Props for <details>. When fold policy is default, leave uncontrolled so the
+ * user can expand/collapse freely (including after a tool completes).
+ * all-open / all-closed force open state via remount key + controlled open.
+ */
+function detailsFoldProps(
+  policy: FoldPolicy,
   defaultOpen: boolean,
-): boolean | undefined {
-  if (policy === "all-open") return true;
-  if (policy === "all-closed") return false;
-  return defaultOpen;
+  remountKey: string,
+): { key: string; open?: boolean; defaultOpen?: boolean } {
+  if (policy === "all-open") {
+    return { key: `${remountKey}::open`, open: true };
+  }
+  if (policy === "all-closed") {
+    return { key: `${remountKey}::closed`, open: false };
+  }
+  return { key: remountKey, defaultOpen };
+}
+
+function toolStatusTone(status: string): string {
+  const s = status.toLowerCase();
+  if (s === "completed" || s === "success" || s === "done") return "done";
+  if (s === "failed" || s === "error" || s === "cancelled") return "fail";
+  return "run";
+}
+
+function groupStatusLabel(tools: ToolScrollItem[]): string {
+  const tones = tools.map((t) => toolStatusTone(t.status));
+  if (tones.some((t) => t === "run")) return "running";
+  if (tones.some((t) => t === "fail")) return "failed";
+  return "completed";
 }
 
 function ToolTerminalEmbed({ terminalId }: { terminalId: string }) {
@@ -343,6 +402,286 @@ const termBtn: CSSProperties = {
   cursor: "pointer",
 };
 
+/** Single tool card — collapsed by default; always expandable after complete. */
+function ToolCard({
+  item,
+  foldPolicy,
+  compact,
+  showTimestamps,
+  nested = false,
+}: {
+  item: ToolScrollItem;
+  foldPolicy: FoldPolicy;
+  compact: boolean;
+  showTimestamps: boolean;
+  nested?: boolean;
+}) {
+  const hasBlocks = (item.contentBlocks?.length ?? 0) > 0;
+  const looksLikeDiff =
+    !!item.output &&
+    (item.output.includes("\n+") ||
+      item.output.includes("\n-") ||
+      item.toolKind === "edit" ||
+      item.title.toLowerCase().includes("edit") ||
+      item.title.toLowerCase().includes("diff") ||
+      item.contentBlocks?.some((b) => (b.type ?? "").toLowerCase() === "diff"));
+  // Always start collapsed unless /expand (all-open) forces open.
+  const fold = detailsFoldProps(foldPolicy, false, `tool-${item.id}`);
+
+  return (
+    <details
+      className={nested ? undefined : "gb-scroll-item"}
+      {...fold}
+      style={{
+        borderRadius: nested ? 8 : 12,
+        border: "1px solid var(--gb-border)",
+        background: "var(--gb-tool)",
+        padding: compact ? "8px 12px" : nested ? "8px 12px" : "10px 16px",
+        fontFamily: "ui-monospace, Menlo, monospace",
+        fontSize: compact ? 12 : 13,
+        contentVisibility: nested ? undefined : "auto",
+        containIntrinsicSize: nested ? undefined : "auto 64px",
+      }}
+    >
+      <summary
+        style={{
+          cursor: "pointer",
+          listStyle: "none",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          flexWrap: "wrap",
+        }}
+      >
+        <span
+          style={{
+            display: "inline-block",
+            width: 8,
+            height: 8,
+            borderRadius: 999,
+            background: statusColor(item.status),
+            flexShrink: 0,
+          }}
+        />
+        <span style={{ fontWeight: 600, color: "var(--gb-ink)" }}>{item.title}</span>
+        {item.toolKind ? (
+          <span style={{ fontSize: 11, color: "var(--gb-ink-muted)" }}>{item.toolKind}</span>
+        ) : null}
+        <span style={{ fontSize: 11, color: "var(--gb-ink-muted)" }}>{item.status}</span>
+        {item.terminalId ? (
+          <span style={{ fontSize: 11, color: "var(--gb-warning)" }}>
+            term:{item.terminalId.slice(0, 12)}
+          </span>
+        ) : null}
+        {item.locations && item.locations.length > 0 ? (
+          <span style={{ fontSize: 11, color: "var(--gb-accent)" }}>
+            {item.locations.slice(0, 2).join(", ")}
+            {item.locations.length > 2 ? ` +${item.locations.length - 2}` : ""}
+          </span>
+        ) : null}
+        {showTimestamps && formatTs(item.ts) ? (
+          <span
+            style={{
+              marginLeft: "auto",
+              fontSize: 10,
+              color: "var(--gb-ink-muted)",
+            }}
+          >
+            {formatTs(item.ts)}
+          </span>
+        ) : null}
+      </summary>
+      {item.input ? (
+        <div style={{ marginTop: 10 }}>
+          <div
+            style={{
+              fontSize: 10,
+              color: "var(--gb-ink-muted)",
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
+              marginBottom: 4,
+            }}
+          >
+            Input
+          </div>
+          <pre
+            style={{
+              margin: 0,
+              maxHeight: 160,
+              overflow: "auto",
+              whiteSpace: "pre-wrap",
+              fontSize: 11,
+              color: "var(--gb-ink-muted)",
+              background: "var(--gb-surface)",
+              borderRadius: 8,
+              padding: 8,
+              border: "1px solid var(--gb-border)",
+            }}
+          >
+            {item.input}
+          </pre>
+        </div>
+      ) : null}
+      {hasBlocks ? <ContentBlocks blocks={item.contentBlocks!} /> : null}
+      {item.terminalId ? <ToolTerminalEmbed terminalId={item.terminalId} /> : null}
+      {item.output ? (
+        <div style={{ marginTop: 10 }}>
+          <div
+            style={{
+              fontSize: 10,
+              color: "var(--gb-ink-muted)",
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
+              marginBottom: 4,
+            }}
+          >
+            {looksLikeDiff ? "Diff / output" : "Output"}
+          </div>
+          {looksLikeDiff ? (
+            <DiffView text={item.output} />
+          ) : (
+            <pre
+              style={{
+                margin: 0,
+                maxHeight: 220,
+                overflow: "auto",
+                whiteSpace: "pre-wrap",
+                fontSize: 11,
+                color: "var(--gb-ink-muted)",
+                background: "var(--gb-surface)",
+                borderRadius: 8,
+                padding: 8,
+                border: "1px solid var(--gb-border)",
+              }}
+            >
+              {item.output}
+            </pre>
+          )}
+        </div>
+      ) : null}
+    </details>
+  );
+}
+
+/** Multiple consecutive tools as one collapsible group (collapsed by default). */
+function ToolGroupView({
+  tools,
+  foldPolicy,
+  compact,
+  showTimestamps,
+}: {
+  tools: ToolScrollItem[];
+  foldPolicy: FoldPolicy;
+  compact: boolean;
+  showTimestamps: boolean;
+}) {
+  const fold = detailsFoldProps(
+    foldPolicy,
+    false,
+    `tool-group-${tools.map((t) => t.id).join("|")}`,
+  );
+  const label = groupStatusLabel(tools);
+  const toneColor =
+    label === "running"
+      ? "var(--gb-warning)"
+      : label === "failed"
+        ? "var(--gb-danger)"
+        : "var(--gb-success)";
+  const titlePreview = tools
+    .slice(0, 4)
+    .map((t) => t.title)
+    .join(" · ");
+  const extra = tools.length > 4 ? ` +${tools.length - 4}` : "";
+
+  return (
+    <details
+      className="gb-scroll-item"
+      {...fold}
+      style={{
+        borderRadius: 12,
+        border: "1px solid var(--gb-border)",
+        background: "var(--gb-surface-raised)",
+        padding: compact ? "8px 12px" : "10px 16px",
+        contentVisibility: "auto",
+        containIntrinsicSize: "auto 56px",
+      }}
+    >
+      <summary
+        style={{
+          cursor: "pointer",
+          listStyle: "none",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          flexWrap: "wrap",
+        }}
+      >
+        <span
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: 999,
+            background: toneColor,
+            flexShrink: 0,
+          }}
+        />
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.04em",
+            textTransform: "uppercase",
+            color: "var(--gb-ink-muted)",
+          }}
+        >
+          {tools.length} tools
+        </span>
+        <span style={{ fontSize: 11, color: toneColor, fontWeight: 600 }}>{label}</span>
+        <span
+          style={{
+            fontSize: 12,
+            color: "var(--gb-ink)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            minWidth: 0,
+            flex: 1,
+            fontFamily: "ui-monospace, Menlo, monospace",
+          }}
+          title={tools.map((t) => t.title).join("\n")}
+        >
+          {titlePreview}
+          {extra}
+        </span>
+        {showTimestamps && formatTs(tools[0]?.ts) ? (
+          <span style={{ fontSize: 10, color: "var(--gb-ink-muted)" }}>
+            {formatTs(tools[0]?.ts)}
+          </span>
+        ) : null}
+      </summary>
+      <div
+        style={{
+          marginTop: 10,
+          display: "flex",
+          flexDirection: "column",
+          gap: 6,
+        }}
+      >
+        {tools.map((t) => (
+          <ToolCard
+            key={t.id}
+            item={t}
+            foldPolicy={foldPolicy}
+            compact={compact}
+            showTimestamps={showTimestamps}
+            nested
+          />
+        ))}
+      </div>
+    </details>
+  );
+}
+
 function AgentMessageView({
   item,
   pad,
@@ -432,12 +771,11 @@ function ItemView({ item }: { item: ScrollItem }) {
         />
       );
     case "thought": {
-      const open = detailsOpen(foldPolicy, false);
+      const fold = detailsFoldProps(foldPolicy, false, `thought-${item.id}`);
       return (
         <details
           className="gb-scroll-item"
-          open={open}
-          key={`thought-${item.id}-${foldPolicy}`}
+          {...fold}
           style={{
             borderRadius: 12,
             border: "1px solid var(--gb-border)",
@@ -481,152 +819,15 @@ function ItemView({ item }: { item: ScrollItem }) {
         </details>
       );
     }
-    case "tool": {
-      const hasBlocks = (item.contentBlocks?.length ?? 0) > 0;
-      const looksLikeDiff =
-        !!item.output &&
-        (item.output.includes("\n+") ||
-          item.output.includes("\n-") ||
-          item.toolKind === "edit" ||
-          item.title.toLowerCase().includes("edit") ||
-          item.title.toLowerCase().includes("diff") ||
-          item.contentBlocks?.some((b) => (b.type ?? "").toLowerCase() === "diff"));
-      const defaultOpen = item.status !== "completed";
-      const open = detailsOpen(foldPolicy, defaultOpen);
+    case "tool":
       return (
-        <details
-          className="gb-scroll-item"
-          open={open}
-          key={`tool-${item.id}-${foldPolicy}`}
-          style={{
-            borderRadius: 12,
-            border: "1px solid var(--gb-border)",
-            background: "var(--gb-tool)",
-            padding: compact ? "8px 12px" : "10px 16px",
-            fontFamily: "ui-monospace, Menlo, monospace",
-            fontSize: compact ? 12 : 13,
-            contentVisibility: "auto",
-            containIntrinsicSize: "auto 64px",
-          }}
-        >
-          <summary
-            style={{
-              cursor: "pointer",
-              listStyle: "none",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              flexWrap: "wrap",
-            }}
-          >
-            <span
-              style={{
-                display: "inline-block",
-                width: 8,
-                height: 8,
-                borderRadius: 999,
-                background: statusColor(item.status),
-              }}
-            />
-            <span style={{ fontWeight: 600, color: "var(--gb-ink)" }}>{item.title}</span>
-            {item.toolKind ? (
-              <span style={{ fontSize: 11, color: "var(--gb-ink-muted)" }}>{item.toolKind}</span>
-            ) : null}
-            <span style={{ fontSize: 11, color: "var(--gb-ink-muted)" }}>{item.status}</span>
-            {item.terminalId ? (
-              <span style={{ fontSize: 11, color: "var(--gb-warning)" }}>
-                term:{item.terminalId.slice(0, 12)}
-              </span>
-            ) : null}
-            {item.locations && item.locations.length > 0 ? (
-              <span style={{ fontSize: 11, color: "var(--gb-accent)" }}>
-                {item.locations.slice(0, 2).join(", ")}
-                {item.locations.length > 2 ? ` +${item.locations.length - 2}` : ""}
-              </span>
-            ) : null}
-            {showTimestamps && formatTs(item.ts) ? (
-              <span
-                style={{
-                  marginLeft: "auto",
-                  fontSize: 10,
-                  color: "var(--gb-ink-muted)",
-                }}
-              >
-                {formatTs(item.ts)}
-              </span>
-            ) : null}
-          </summary>
-          {item.input ? (
-            <div style={{ marginTop: 10 }}>
-              <div
-                style={{
-                  fontSize: 10,
-                  color: "var(--gb-ink-muted)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.04em",
-                  marginBottom: 4,
-                }}
-              >
-                Input
-              </div>
-              <pre
-                style={{
-                  margin: 0,
-                  maxHeight: 160,
-                  overflow: "auto",
-                  whiteSpace: "pre-wrap",
-                  fontSize: 11,
-                  color: "var(--gb-ink-muted)",
-                  background: "var(--gb-surface)",
-                  borderRadius: 8,
-                  padding: 8,
-                  border: "1px solid var(--gb-border)",
-                }}
-              >
-                {item.input}
-              </pre>
-            </div>
-          ) : null}
-          {hasBlocks ? <ContentBlocks blocks={item.contentBlocks!} /> : null}
-          {item.terminalId ? <ToolTerminalEmbed terminalId={item.terminalId} /> : null}
-          {item.output ? (
-            <div style={{ marginTop: 10 }}>
-              <div
-                style={{
-                  fontSize: 10,
-                  color: "var(--gb-ink-muted)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.04em",
-                  marginBottom: 4,
-                }}
-              >
-                {looksLikeDiff ? "Diff / output" : "Output"}
-              </div>
-              {looksLikeDiff ? (
-                <DiffView text={item.output} />
-              ) : (
-                <pre
-                  style={{
-                    margin: 0,
-                    maxHeight: 220,
-                    overflow: "auto",
-                    whiteSpace: "pre-wrap",
-                    fontSize: 11,
-                    color: "var(--gb-ink-muted)",
-                    background: "var(--gb-surface)",
-                    borderRadius: 8,
-                    padding: 8,
-                    border: "1px solid var(--gb-border)",
-                  }}
-                >
-                  {item.output}
-                </pre>
-              )}
-            </div>
-          ) : null}
-        </details>
+        <ToolCard
+          item={item}
+          foldPolicy={foldPolicy}
+          compact={compact}
+          showTimestamps={showTimestamps}
+        />
       );
-    }
     case "plan":
       return (
         <div
@@ -717,10 +918,26 @@ export function Scrollback() {
   const scrollToIndex = useAppStore((s) => s.scrollToIndex);
   const setScrollToIndex = useAppStore((s) => s.setScrollToIndex);
   const compact = useAppStore((s) => s.compactMode);
+  const foldPolicy = useAppStore((s) => s.foldPolicy);
+  const showTimestamps = useAppStore((s) => s.showTimestamps);
   const parentRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
 
-  const matchIndices = (() => {
+  const displayRows = useMemo(() => buildDisplayRows(items), [items]);
+
+  const itemToRow = useMemo(() => {
+    const map = new Map<number, number>();
+    displayRows.forEach((row, ri) => {
+      if (row.kind === "single") {
+        map.set(row.itemIndex, ri);
+      } else {
+        for (const ii of row.itemIndices) map.set(ii, ri);
+      }
+    });
+    return map;
+  }, [displayRows]);
+
+  const matchIndices = useMemo(() => {
     const q = findQuery.trim().toLowerCase();
     if (!findOpen || !q) return new Set<number>();
     const set = new Set<number>();
@@ -736,30 +953,45 @@ export function Scrollback() {
       if (text.toLowerCase().includes(q)) set.add(i);
     });
     return set;
-  })();
+  }, [findOpen, findQuery, items]);
 
-  const activeMatch = (() => {
+  const activeMatchItem = useMemo(() => {
     if (!findOpen || matchIndices.size === 0) return -1;
     const arr = Array.from(matchIndices).sort((a, b) => a - b);
     return arr[Math.min(findIndex, arr.length - 1)] ?? -1;
-  })();
+  }, [findOpen, matchIndices, findIndex]);
+
+  const activeMatchRow =
+    activeMatchItem >= 0 ? (itemToRow.get(activeMatchItem) ?? -1) : -1;
+  const jumpRow =
+    scrollToIndex != null ? (itemToRow.get(scrollToIndex) ?? scrollToIndex) : null;
 
   const virtualizer = useVirtualizer({
-    count: items.length,
+    count: displayRows.length,
     getScrollElement: () => parentRef.current,
     estimateSize: (i) => {
-      const it = items[i];
-      if (!it) return 80;
+      const row = displayRows[i];
+      if (!row) return 80;
+      if (row.kind === "tools") {
+        // Collapsed group height; expands when opened.
+        return compact ? 52 : 60;
+      }
+      const it = row.item;
       if (it.kind === "system") return compact ? 40 : 48;
       if (it.kind === "thought") return compact ? 48 : 56;
-      if (it.kind === "tool") return compact ? 72 : 88;
+      if (it.kind === "tool") return compact ? 52 : 60;
       if (it.kind === "plan") return compact ? 84 : 100;
       if (it.kind === "user") return compact ? 60 : 72;
       const len = it.kind === "agent" ? it.text.length : 0;
       return Math.min(480, Math.max(compact ? 64 : 80, 48 + Math.floor(len / 4)));
     },
     overscan: 8,
-    getItemKey: (i) => items[i]?.id ?? i,
+    getItemKey: (i) => {
+      const row = displayRows[i];
+      if (!row) return i;
+      if (row.kind === "tools") return `tools:${row.tools.map((t) => t.id).join(",")}`;
+      return row.item.id;
+    },
   });
 
   useEffect(() => {
@@ -774,24 +1006,29 @@ export function Scrollback() {
   }, []);
 
   useEffect(() => {
-    if (!stickToBottom.current || items.length === 0) return;
+    if (!stickToBottom.current || displayRows.length === 0) return;
     if (scrollToIndex != null) return;
-    virtualizer.scrollToIndex(items.length - 1, { align: "end" });
-  }, [items.length, items[items.length - 1]?.id, virtualizer, scrollToIndex]);
+    virtualizer.scrollToIndex(displayRows.length - 1, { align: "end" });
+  }, [
+    displayRows.length,
+    items[items.length - 1]?.id,
+    virtualizer,
+    scrollToIndex,
+  ]);
 
-  // Consume jump / timeline scroll requests.
+  // Consume jump / timeline scroll requests (item index → display row).
   useEffect(() => {
     if (scrollToIndex == null) return;
     if (scrollToIndex < 0 || scrollToIndex >= items.length) {
       setScrollToIndex(null);
       return;
     }
+    const row = itemToRow.get(scrollToIndex) ?? 0;
     stickToBottom.current = false;
-    virtualizer.scrollToIndex(scrollToIndex, { align: "start" });
-    // Keep highlight briefly then clear target so stick-to-bottom can resume later.
+    virtualizer.scrollToIndex(row, { align: "start" });
     const t = window.setTimeout(() => setScrollToIndex(null), 800);
     return () => window.clearTimeout(t);
-  }, [scrollToIndex, items.length, virtualizer, setScrollToIndex]);
+  }, [scrollToIndex, items.length, itemToRow, virtualizer, setScrollToIndex]);
 
   if (items.length === 0) {
     return (
@@ -841,14 +1078,23 @@ export function Scrollback() {
         }}
       >
         {vItems.map((v) => {
-          const item = items[v.index];
-          if (!item) return null;
-          const jumped = scrollToIndex === v.index;
+          const row = displayRows[v.index];
+          if (!row) return null;
+          const rowItemIndices =
+            row.kind === "single" ? [row.itemIndex] : row.itemIndices;
+          const rowMatches = rowItemIndices.some((ii) => matchIndices.has(ii));
+          const jumped = jumpRow === v.index;
+          const active = activeMatchRow === v.index;
+          const key =
+            row.kind === "tools"
+              ? `tools:${row.tools.map((t) => t.id).join(",")}`
+              : row.item.id;
+
           return (
             <div
-              key={item.id}
+              key={key}
               data-index={v.index}
-              data-scroll-item={v.index}
+              data-scroll-item={rowItemIndices[0]}
               ref={virtualizer.measureElement}
               style={{
                 position: "absolute",
@@ -858,16 +1104,25 @@ export function Scrollback() {
                 transform: `translateY(${v.start}px)`,
                 paddingBottom: gap,
                 outline:
-                  jumped || v.index === activeMatch
+                  jumped || active
                     ? "2px solid var(--gb-accent)"
-                    : matchIndices.has(v.index)
+                    : rowMatches
                       ? "1px solid var(--gb-accent-dim)"
                       : undefined,
                 outlineOffset: 2,
                 borderRadius: 12,
               }}
             >
-              <ItemView item={item} />
+              {row.kind === "tools" ? (
+                <ToolGroupView
+                  tools={row.tools}
+                  foldPolicy={foldPolicy}
+                  compact={compact}
+                  showTimestamps={showTimestamps}
+                />
+              ) : (
+                <ItemView item={row.item} />
+              )}
             </div>
           );
         })}

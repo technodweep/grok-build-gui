@@ -1,12 +1,12 @@
 [package]
-name = "grok-build-gui"
+name = "kayg"
 version = "0.1.0"
-description = "Desktop GUI for Grok Build — ACP client over grok agent stdio"
+description = "Independent desktop client compatible with the Grok Build CLI over ACP"
 authors = ["technodweep"]
 edition = "2021"
 
 [lib]
-name = "grok_build_gui_lib"
+name = "kayg_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

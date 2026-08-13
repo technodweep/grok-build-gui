@@ -1,7 +1,8 @@
 {
-  "name": "grok-build-gui",
+  "name": "kayg",
   "private": true,
   "version": "0.1.0",
+  "description": "Independent open-source desktop client compatible with the Grok Build CLI",
   "type": "module",
   "scripts": {
     "dev": "vite",

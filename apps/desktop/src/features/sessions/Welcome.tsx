@@ -134,7 +134,7 @@ export function Welcome({ env }: { env: EnvironmentInfo }) {
   };
   const card: CSSProperties = {
     width: "100%",
-    maxWidth: 512,
+    maxWidth: 640,
     borderRadius: 12,
     border: "1px solid #2a3140",
     background: "#141820",
@@ -142,7 +142,9 @@ export function Welcome({ env }: { env: EnvironmentInfo }) {
     textAlign: "left",
   };
   const input: CSSProperties = {
-    flex: 1,
+    flex: "1 1 auto",
+    minWidth: 0,
+    width: "100%",
     borderRadius: 8,
     border: "1px solid #2a3140",
     background: "#0c0e12",
@@ -150,6 +152,8 @@ export function Welcome({ env }: { env: EnvironmentInfo }) {
     padding: "8px 12px",
     fontFamily: "ui-monospace, Menlo, monospace",
     fontSize: 13,
+    // Keep long paths readable: scroll horizontally inside the field if needed
+    overflowX: "auto",
   };
   const btn: CSSProperties = {
     borderRadius: 8,
@@ -173,7 +177,7 @@ export function Welcome({ env }: { env: EnvironmentInfo }) {
 
   return (
     <div style={page}>
-      <div style={{ maxWidth: 512, textAlign: "center" }}>
+      <div style={{ maxWidth: 640, width: "100%", textAlign: "center" }}>
         <h1 style={{ margin: 0, fontSize: 28, fontWeight: 600 }}>Grok Build</h1>
         <p style={{ marginTop: 8, color: "#8b95a8", fontSize: 14, lineHeight: 1.5 }}>
           Desktop GUI for Grok Build. Spawns <code style={{ color: "#7c9cff" }}>grok agent stdio</code>{" "}
@@ -222,8 +226,20 @@ export function Welcome({ env }: { env: EnvironmentInfo }) {
       ) : (
         <div style={card}>
           <div style={{ fontSize: 13, color: "#8b95a8", marginBottom: 16 }}>
-            <div>
-              Binary: <span style={{ color: "#e8ecf4", fontFamily: "monospace" }}>{env.binaryPath}</span>
+            <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+              <span>Binary:</span>
+              <span
+                style={{
+                  color: "#e8ecf4",
+                  fontFamily: "ui-monospace, Menlo, monospace",
+                  fontSize: 12,
+                  wordBreak: "break-all",
+                  overflowWrap: "anywhere",
+                }}
+                title={env.binaryPath ?? undefined}
+              >
+                {env.binaryPath}
+              </span>
             </div>
             {env.binaryVersion ? <div style={{ marginTop: 4 }}>Version: {env.binaryVersion}</div> : null}
             <div style={{ marginTop: 4, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -309,17 +325,49 @@ export function Welcome({ env }: { env: EnvironmentInfo }) {
           <label style={{ display: "block", marginBottom: 6, fontSize: 11, color: "#8b95a8", letterSpacing: "0.04em", textTransform: "uppercase" }}>
             Project folder
           </label>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              alignItems: "stretch",
+              flexWrap: "wrap",
+              minWidth: 0,
+            }}
+          >
             <input
               style={input}
               value={projectCwd}
               onChange={(e) => setProjectCwd(e.target.value)}
               placeholder="/path/to/project"
+              title={projectCwd || undefined}
+              spellCheck={false}
+              autoComplete="off"
             />
-            <button type="button" style={btn} onClick={() => void pickFolder()}>
+            <button
+              type="button"
+              style={{ ...btn, flex: "0 0 auto", whiteSpace: "nowrap" }}
+              onClick={() => void pickFolder()}
+            >
               Browse
             </button>
           </div>
+          {projectCwd ? (
+            <div
+              style={{
+                marginTop: 6,
+                fontSize: 11,
+                fontFamily: "ui-monospace, Menlo, monospace",
+                color: "#8b95a8",
+                wordBreak: "break-all",
+                overflowWrap: "anywhere",
+                lineHeight: 1.4,
+                userSelect: "all",
+              }}
+              title={projectCwd}
+            >
+              {projectCwd}
+            </div>
+          ) : null}
 
           <div style={{ marginTop: 16 }}>
             <div

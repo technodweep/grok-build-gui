@@ -17,5 +17,5 @@ fn main() {
         }
     }
 
-    grok_build_gui_lib::run()
+    kayg_lib::run()
 }

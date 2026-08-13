@@ -5,7 +5,7 @@ mod events;
 mod fs_index;
 mod session;
 
-/// Live-agent helpers for integration tests (`GROK_GUI_INTEGRATION=1`).
+/// Live-agent helpers for integration tests (`KAYG_INTEGRATION=1`).
 #[doc(hidden)]
 pub mod test_support {
     pub use crate::acp::{authenticate_cached, list_sessions_ephemeral};
@@ -1149,7 +1149,7 @@ pub fn run() {
         ])
         .setup(|app| {
             if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_title("Grok Build");
+                let _ = window.set_title("KayG");
             }
             Ok(())
         })
