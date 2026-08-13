@@ -82,6 +82,8 @@ interface AppState {
   signals: SessionSignals | null;
   /** Subagents for the active (or last loaded) parent session. */
   subagents: SubagentInfo[];
+  /** Subagents strip expanded (list visible). Collapsed shows a one-line bar. */
+  subagentsOpen: boolean;
   /** When true, ignore session/update history-like chunks (resume grace). */
   suppressHistoryUpdates: boolean;
   /** Live ACP terminal snapshots. */
@@ -208,6 +210,8 @@ interface AppState {
   setSignals: (s: SessionSignals | null) => void;
   setSubagents: (list: SubagentInfo[]) => void;
   upsertSubagent: (info: SubagentInfo) => void;
+  setSubagentsOpen: (v: boolean) => void;
+  toggleSubagentsOpen: () => void;
   setSuppressHistoryUpdates: (v: boolean) => void;
   setTerminals: (list: TerminalSnapshot[]) => void;
   upsertTerminal: (snap: TerminalSnapshot) => void;
@@ -654,6 +658,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   projectConfigTab: "rules",
   signals: null,
   subagents: [],
+  /** Collapsed by default; user expands when they want the list. */
+  subagentsOpen: false,
   suppressHistoryUpdates: false,
   terminals: [],
   terminalsOpen: false,
@@ -998,9 +1004,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       next[idx] = { ...next[idx], ...info };
       set({ subagents: next });
     } else {
+      // Stay collapsed; header still shows count / live badge.
       set({ subagents: [...list, info] });
     }
   },
+  setSubagentsOpen: (subagentsOpen) => set({ subagentsOpen }),
+  toggleSubagentsOpen: () => set({ subagentsOpen: !get().subagentsOpen }),
   setSuppressHistoryUpdates: (suppressHistoryUpdates) =>
     set({ suppressHistoryUpdates }),
 

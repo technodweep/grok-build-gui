@@ -698,6 +698,8 @@ export function Composer() {
         break;
       }
       case "subagents": {
+        // Explicit user intent via slash — expand strip; modal is optional detail.
+        useAppStore.getState().setSubagentsOpen(true);
         setAgentsTab("live");
         setAgentsOpen(true);
         break;
