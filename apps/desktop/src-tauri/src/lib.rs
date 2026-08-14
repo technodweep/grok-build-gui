@@ -20,20 +20,20 @@ use acp::{
     TerminalSnapshot,
 };
 use config::{
-    add_mcp_server, delete_custom_model, delete_memory_file, delete_user_agent, delete_user_persona,
-    ensure_agents_md, environment_info, list_recent_media, load_agents_catalog, load_auth_account,
-    load_custom_models, load_extensions_hub, load_grok_config_overview, load_memory_catalog,
-    load_privacy_config, load_project_rules, load_sandbox_status, load_settings, plugin_install,
-    plugin_set_enabled, plugin_uninstall, read_local_media, read_memory_file, read_project_rule,
-    remove_mcp_server, run_doctor, run_login, run_logout, run_mcp_doctor, save_custom_model,
-    save_project_rule, save_settings, save_user_agent, save_user_persona, set_default_model,
-    set_hook_enabled, set_mcp_enabled, set_memory_config_enabled, set_project_trust,
-    set_sandbox_profile, set_skill_disabled, set_telemetry_enabled, AddMcpArgs, AgentDef,
-    AgentsCatalog, AuthAccountInfo, CliActionResult, CustomModelDef, CustomModelsCatalog,
-    DoctorReport, EnvironmentInfo, ExtensionsHub, GrokConfigOverview, GuiSettings, HookInfo,
-    LocalMediaData, LoginMode, McpDoctorReport, McpServerInfo, MemoryCatalog, MemoryFileContent,
-    MemoryFileEntry, PersonaDef, PrivacyConfig, ProjectRuleContent, ProjectRulesCatalog,
-    SandboxStatus, SaveCustomModelArgs, TrustedFolder,
+    add_mcp_server, delete_custom_model, delete_memory_file, delete_user_agent,
+    delete_user_persona, ensure_agents_md, environment_info, list_recent_media,
+    load_agents_catalog, load_auth_account, load_custom_models, load_extensions_hub,
+    load_grok_config_overview, load_memory_catalog, load_privacy_config, load_project_rules,
+    load_sandbox_status, load_settings, plugin_install, plugin_set_enabled, plugin_uninstall,
+    read_local_media, read_memory_file, read_project_rule, remove_mcp_server, run_doctor,
+    run_login, run_logout, run_mcp_doctor, save_custom_model, save_project_rule, save_settings,
+    save_user_agent, save_user_persona, set_default_model, set_hook_enabled, set_mcp_enabled,
+    set_memory_config_enabled, set_project_trust, set_sandbox_profile, set_skill_disabled,
+    set_telemetry_enabled, AddMcpArgs, AgentDef, AgentsCatalog, AuthAccountInfo, CliActionResult,
+    CustomModelDef, CustomModelsCatalog, DoctorReport, EnvironmentInfo, ExtensionsHub,
+    GrokConfigOverview, GuiSettings, HookInfo, LocalMediaData, LoginMode, McpDoctorReport,
+    McpServerInfo, MemoryCatalog, MemoryFileContent, MemoryFileEntry, PersonaDef, PrivacyConfig,
+    ProjectRuleContent, ProjectRulesCatalog, SandboxStatus, SaveCustomModelArgs, TrustedFolder,
 };
 use error::AppResult;
 use fs_index::FileEntry;
@@ -873,10 +873,7 @@ fn kill_terminal(
 ) -> AppResult<()> {
     handle
         .terminals()
-        .kill(
-            &app,
-            &Some(json!({ "terminalId": args.terminal_id })),
-        )
+        .kill(&app, &Some(json!({ "terminalId": args.terminal_id })))
         .map_err(error::AppError::Message)?;
     Ok(())
 }
@@ -889,10 +886,7 @@ fn release_terminal(
 ) -> AppResult<()> {
     handle
         .terminals()
-        .release(
-            &app,
-            &Some(json!({ "terminalId": args.terminal_id })),
-        )
+        .release(&app, &Some(json!({ "terminalId": args.terminal_id })))
         .map_err(error::AppError::Message)?;
     Ok(())
 }
@@ -936,9 +930,8 @@ fn write_export_file(path: String, content: String) -> AppResult<()> {
     let p = PathBuf::from(&path);
     if let Some(parent) = p.parent() {
         if !parent.as_os_str().is_empty() {
-            std::fs::create_dir_all(parent).map_err(|e| {
-                error::AppError::Message(format!("create parent dirs: {e}"))
-            })?;
+            std::fs::create_dir_all(parent)
+                .map_err(|e| error::AppError::Message(format!("create parent dirs: {e}")))?;
         }
     }
     std::fs::write(&p, content.as_bytes())

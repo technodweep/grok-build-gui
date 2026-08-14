@@ -440,10 +440,7 @@ pub fn read_local_media(
         return Err(AppError::Message("path is empty".into()));
     }
     // Strip file:// prefix
-    let path = path
-        .strip_prefix("file://")
-        .unwrap_or(path)
-        .to_string();
+    let path = path.strip_prefix("file://").unwrap_or(path).to_string();
     let p = {
         let raw = PathBuf::from(&path);
         if raw.is_absolute() {

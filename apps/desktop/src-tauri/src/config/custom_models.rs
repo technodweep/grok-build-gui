@@ -132,8 +132,14 @@ pub fn load_custom_models() -> CustomModelsCatalog {
 fn def_from_table(id: &str, t: &toml::map::Map<String, TomlValue>) -> CustomModelDef {
     CustomModelDef {
         id: id.to_string(),
-        model: t.get("model").and_then(|v| v.as_str()).map(|s| s.to_string()),
-        name: t.get("name").and_then(|v| v.as_str()).map(|s| s.to_string()),
+        model: t
+            .get("model")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
+        name: t
+            .get("name")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string()),
         description: t
             .get("description")
             .and_then(|v| v.as_str())
@@ -184,8 +190,8 @@ fn read_config_doc() -> AppResult<DocumentMut> {
         fs::write(&path, "# Grok config — managed in part by KayG\n")
             .map_err(|e| AppError::Message(format!("create config: {e}")))?;
     }
-    let raw = fs::read_to_string(&path)
-        .map_err(|e| AppError::Message(format!("read config: {e}")))?;
+    let raw =
+        fs::read_to_string(&path).map_err(|e| AppError::Message(format!("read config: {e}")))?;
     raw.parse::<DocumentMut>()
         .map_err(|e| AppError::Message(format!("parse config: {e}")))
 }
@@ -235,7 +241,12 @@ pub fn save_custom_model(args: SaveCustomModelArgs) -> AppResult<CustomModelDef>
 
         if args.clear_api_key {
             entry.remove("api_key");
-        } else if let Some(k) = args.api_key.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()) {
+        } else if let Some(k) = args
+            .api_key
+            .as_ref()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+        {
             entry["api_key"] = value(k);
         }
 
@@ -370,9 +381,9 @@ pub fn run_mcp_doctor(
         .map_err(|e| AppError::Agent(format!("spawn grok mcp doctor: {e}")))?;
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-    let raw: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap_or_else(|_| {
-        serde_json::json!({ "parseError": stdout.chars().take(2000).collect::<String>() })
-    });
+    let raw: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap_or_else(
+        |_| serde_json::json!({ "parseError": stdout.chars().take(2000).collect::<String>() }),
+    );
 
     let mut servers = Vec::new();
     // Shape varies: { servers: [ { name, tools, status, error } ] } or map
@@ -423,19 +434,17 @@ fn parse_mcp_server_entry(s: &serde_json::Value) -> McpDoctorServer {
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
-    let status = s
-        .get("status")
-        .and_then(|v| {
-            if let Some(st) = v.as_str() {
-                Some(st.to_string())
-            } else if let Some(obj) = v.as_object() {
-                obj.get("status")
-                    .and_then(|x| x.as_str())
-                    .map(|s| s.to_string())
-            } else {
-                None
-            }
-        });
+    let status = s.get("status").and_then(|v| {
+        if let Some(st) = v.as_str() {
+            Some(st.to_string())
+        } else if let Some(obj) = v.as_object() {
+            obj.get("status")
+                .and_then(|x| x.as_str())
+                .map(|s| s.to_string())
+        } else {
+            None
+        }
+    });
     let error = s
         .get("error")
         .and_then(|v| v.as_str())

@@ -260,8 +260,8 @@ pub fn load_plan_md(session_id: &str) -> AppResult<Option<String>> {
     if !path.is_file() {
         return Ok(None);
     }
-    let text = fs::read_to_string(&path)
-        .map_err(|e| AppError::Message(format!("read plan.md: {e}")))?;
+    let text =
+        fs::read_to_string(&path).map_err(|e| AppError::Message(format!("read plan.md: {e}")))?;
     Ok(Some(text))
 }
 
@@ -514,14 +514,18 @@ fn extract_text(update: &Value) -> String {
 fn extract_line_ts(v: &Value) -> Option<u64> {
     let ms = v
         .pointer("/params/_meta/agentTimestampMs")
-        .and_then(|x| as_u64(x))
-        .or_else(|| v.pointer("/_meta/agentTimestampMs").and_then(|x| as_u64(x)));
+        .and_then(as_u64)
+        .or_else(|| v.pointer("/_meta/agentTimestampMs").and_then(as_u64));
     if let Some(ms) = ms {
         return Some(ms);
     }
-    let t = v.get("timestamp").and_then(|x| as_u64(x))?;
+    let t = v.get("timestamp").and_then(as_u64)?;
     // Heuristic: values below ~1e12 are unix seconds; larger are ms.
-    Some(if t < 1_000_000_000_000 { t.saturating_mul(1000) } else { t })
+    Some(if t < 1_000_000_000_000 {
+        t.saturating_mul(1000)
+    } else {
+        t
+    })
 }
 
 fn as_u64(v: &Value) -> Option<u64> {
@@ -597,24 +601,24 @@ pub fn list_subagents(parent_session_id: &str) -> AppResult<Vec<SubagentInfo>> {
     }
 
     let mut out = Vec::new();
-    let entries = fs::read_dir(&sub_root)
-        .map_err(|e| AppError::Message(format!("read subagents: {e}")))?;
+    let entries =
+        fs::read_dir(&sub_root).map_err(|e| AppError::Message(format!("read subagents: {e}")))?;
     for entry in entries.flatten() {
         let path = entry.path();
         // meta.json either directly or in a subdirectory
-        let meta_path = if path.is_file() && path.file_name().and_then(|n| n.to_str()) == Some("meta.json")
-        {
-            path.clone()
-        } else if path.is_dir() {
-            let m = path.join("meta.json");
-            if m.is_file() {
-                m
+        let meta_path =
+            if path.is_file() && path.file_name().and_then(|n| n.to_str()) == Some("meta.json") {
+                path.clone()
+            } else if path.is_dir() {
+                let m = path.join("meta.json");
+                if m.is_file() {
+                    m
+                } else {
+                    continue;
+                }
             } else {
                 continue;
-            }
-        } else {
-            continue;
-        };
+            };
 
         let raw = match fs::read_to_string(&meta_path) {
             Ok(r) => r,
@@ -652,7 +656,9 @@ pub fn list_subagents(parent_session_id: &str) -> AppResult<Vec<SubagentInfo>> {
                 if let Some(s) = x.as_str() {
                     Some(s.to_string())
                 } else {
-                    x.get("path").and_then(|p| p.as_str()).map(|s| s.to_string())
+                    x.get("path")
+                        .and_then(|p| p.as_str())
+                        .map(|s| s.to_string())
                 }
             });
         let isolation = isolation.or_else(|| {
@@ -735,9 +741,7 @@ pub fn list_subagents(parent_session_id: &str) -> AppResult<Vec<SubagentInfo>> {
                 2
             }
         };
-        rank(a)
-            .cmp(&rank(b))
-            .then_with(|| b.id.cmp(&a.id)) // newest-ish ids first
+        rank(a).cmp(&rank(b)).then_with(|| b.id.cmp(&a.id)) // newest-ish ids first
     });
     Ok(out)
 }
@@ -751,10 +755,10 @@ pub fn load_signals(session_id: &str) -> AppResult<SessionSignals> {
             "signals.json not found yet (send a prompt first)".into(),
         ));
     }
-    let raw = fs::read_to_string(&path)
-        .map_err(|e| AppError::Message(format!("read signals: {e}")))?;
-    let v: Value = serde_json::from_str(&raw)
-        .map_err(|e| AppError::Message(format!("parse signals: {e}")))?;
+    let raw =
+        fs::read_to_string(&path).map_err(|e| AppError::Message(format!("read signals: {e}")))?;
+    let v: Value =
+        serde_json::from_str(&raw).map_err(|e| AppError::Message(format!("parse signals: {e}")))?;
 
     let used = v
         .get("contextTokensUsed")
@@ -814,10 +818,7 @@ pub fn load_signals(session_id: &str) -> AppResult<SessionSignals> {
             .get("assistantMessageCount")
             .and_then(|x| x.as_u64())
             .unwrap_or(0),
-        tool_call_count: v
-            .get("toolCallCount")
-            .and_then(|x| x.as_u64())
-            .unwrap_or(0),
+        tool_call_count: v.get("toolCallCount").and_then(|x| x.as_u64()).unwrap_or(0),
         error_count: v.get("errorCount").and_then(|x| x.as_u64()).unwrap_or(0),
         compaction_count: v
             .get("compactionCount")
@@ -878,10 +879,8 @@ mod tests {
 
     #[test]
     fn parse_summary_from_disk() {
-        let dir = std::env::temp_dir().join(format!(
-            "grok-gui-session-test-{}",
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("grok-gui-session-test-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         let summary = dir.join("summary.json");
@@ -910,10 +909,8 @@ mod tests {
 
     #[test]
     fn list_sessions_filters_cwd() {
-        let root = std::env::temp_dir().join(format!(
-            "grok-gui-sessions-root-{}",
-            std::process::id()
-        ));
+        let root =
+            std::env::temp_dir().join(format!("grok-gui-sessions-root-{}", std::process::id()));
         let _ = fs::remove_dir_all(&root);
         let a = root.join("%2Ftmp%2Fa").join("sess1");
         let b = root.join("%2Ftmp%2Fb").join("sess2");
@@ -923,9 +920,8 @@ mod tests {
             (a.join("summary.json"), "s1", "/tmp/a"),
             (b.join("summary.json"), "s2", "/tmp/b"),
         ] {
-            let body = format!(
-                r#"{{"info":{{"id":"{id}","cwd":"{cwd}"}},"generated_title":"{id}"}}"#
-            );
+            let body =
+                format!(r#"{{"info":{{"id":"{id}","cwd":"{cwd}"}},"generated_title":"{id}"}}"#);
             fs::write(&path, body).unwrap();
         }
 
@@ -944,7 +940,9 @@ mod tests {
         let all = list_sessions(None).unwrap();
         assert!(all.len() >= 2);
         let filtered = list_sessions(Some("/tmp/a")).unwrap();
-        assert!(filtered.iter().all(|s| s.cwd.trim_end_matches('/') == "/tmp/a"));
+        assert!(filtered
+            .iter()
+            .all(|s| s.cwd.trim_end_matches('/') == "/tmp/a"));
         assert!(!filtered.is_empty());
         match prev {
             Some(v) => unsafe { std::env::set_var("GROK_HOME", v) },

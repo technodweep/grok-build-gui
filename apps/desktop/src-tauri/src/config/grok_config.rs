@@ -103,12 +103,7 @@ pub fn load_grok_config_overview(project_cwd: Option<&str>) -> AppResult<GrokCon
         .collect();
 
     let mut skills = Vec::new();
-    scan_skills_root(
-        &grok_home().join("skills"),
-        "user",
-        &disabled,
-        &mut skills,
-    );
+    scan_skills_root(&grok_home().join("skills"), "user", &disabled, &mut skills);
     scan_skills_root(
         &grok_home().join("bundled/skills"),
         "bundled",
@@ -138,12 +133,7 @@ pub fn load_grok_config_overview(project_cwd: Option<&str>) -> AppResult<GrokCon
         );
         // Walk up a few levels for repo-root .grok/skills
         if let Some(parent) = cwd.parent() {
-            scan_skills_root(
-                &parent.join(".grok/skills"),
-                "repo",
-                &disabled,
-                &mut skills,
-            );
+            scan_skills_root(&parent.join(".grok/skills"), "repo", &disabled, &mut skills);
         }
     }
 
@@ -195,10 +185,7 @@ fn apply_toml(out: &mut GrokConfigOverview, doc: &TomlValue) {
     // [mcp_servers.<name>]
     if let Some(servers) = doc.get("mcp_servers").and_then(|v| v.as_table()) {
         for (name, val) in servers {
-            let enabled = val
-                .get("enabled")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(true);
+            let enabled = val.get("enabled").and_then(|v| v.as_bool()).unwrap_or(true);
             let command = val
                 .get("command")
                 .and_then(|v| v.as_str())
@@ -222,8 +209,7 @@ fn apply_toml(out: &mut GrokConfigOverview, doc: &TomlValue) {
                 transport,
             });
         }
-        out.mcp_servers
-            .sort_by_key(|a| a.name.to_lowercase());
+        out.mcp_servers.sort_by_key(|a| a.name.to_lowercase());
     }
 
     if let Some(skills) = doc.get("skills") {
@@ -249,10 +235,7 @@ fn apply_toml(out: &mut GrokConfigOverview, doc: &TomlValue) {
         .and_then(|v| v.as_array())
     {
         for src in arr {
-            let name = src
-                .get("name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("source");
+            let name = src.get("name").and_then(|v| v.as_str()).unwrap_or("source");
             let git = src.get("git").and_then(|v| v.as_str()).unwrap_or("");
             out.marketplace_sources.push(if git.is_empty() {
                 name.to_string()

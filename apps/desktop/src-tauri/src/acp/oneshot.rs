@@ -12,8 +12,9 @@ use super::protocol::{self, Incoming};
 use crate::config;
 use crate::error::{AppError, AppResult};
 
-type PendingMap =
-    std::sync::Arc<parking_lot::Mutex<std::collections::HashMap<u64, oneshot::Sender<Result<Value, AppError>>>>>;
+type PendingMap = std::sync::Arc<
+    parking_lot::Mutex<std::collections::HashMap<u64, oneshot::Sender<Result<Value, AppError>>>>,
+>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -34,8 +35,7 @@ pub async fn list_sessions_ephemeral(
     cwd_filter: Option<&str>,
     binary_override: Option<&str>,
 ) -> AppResult<Vec<AgentSessionInfo>> {
-    let binary =
-        config::detect_grok_binary(binary_override).ok_or(AppError::GrokNotFound)?;
+    let binary = config::detect_grok_binary(binary_override).ok_or(AppError::GrokNotFound)?;
     let process = AgentProcess::spawn(binary, false)?;
     let AgentProcess {
         mut child,
@@ -98,9 +98,7 @@ pub async fn list_sessions_ephemeral(
         let (tx, rx) = oneshot::channel();
         pending.lock().insert(id, tx);
         let line = protocol::request(id, method, params);
-        write_tx
-            .send(line)
-            .map_err(|_| AppError::NotConnected)?;
+        write_tx.send(line).map_err(|_| AppError::NotConnected)?;
         match tokio::time::timeout(Duration::from_secs(30), rx).await {
             Ok(Ok(r)) => r,
             Ok(Err(_)) => Err(AppError::Agent("request channel closed".into())),
@@ -186,8 +184,7 @@ pub fn parse_session_list(value: &Value) -> Vec<AgentSessionInfo> {
 
 /// One-shot authenticate (cached token) — returns agent auth meta when available.
 pub async fn authenticate_cached(binary_override: Option<&str>) -> AppResult<Value> {
-    let binary =
-        config::detect_grok_binary(binary_override).ok_or(AppError::GrokNotFound)?;
+    let binary = config::detect_grok_binary(binary_override).ok_or(AppError::GrokNotFound)?;
     let process = AgentProcess::spawn(binary, false)?;
     let AgentProcess {
         mut child,

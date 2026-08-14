@@ -7,10 +7,10 @@ export const HISTORY_INITIAL_LIMIT = 150;
 export const HISTORY_PAGE_SIZE = 100;
 
 /** Attach original disk timestamp only when present — never invent. */
-function withOriginalTs<T extends { ts?: number }>(
-  item: T,
+function withOriginalTs(
+  item: ScrollItem,
   ts: number | null | undefined,
-): T {
+): ScrollItem {
   if (ts == null || !Number.isFinite(ts) || ts <= 0) return item;
   return { ...item, ts };
 }

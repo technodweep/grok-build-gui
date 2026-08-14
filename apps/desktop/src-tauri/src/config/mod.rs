@@ -16,17 +16,13 @@ pub use account::{
     set_sandbox_profile, set_telemetry_enabled, AuthAccountInfo, CliActionResult, DoctorReport,
     LoginMode, PrivacyConfig, SandboxStatus,
 };
+pub use agents::{
+    delete_user_agent, delete_user_persona, load_agents_catalog, save_user_agent,
+    save_user_persona, AgentDef, AgentsCatalog, PersonaDef,
+};
 pub use custom_models::{
     delete_custom_model, load_custom_models, run_mcp_doctor, save_custom_model, set_default_model,
     CustomModelDef, CustomModelsCatalog, McpDoctorReport, SaveCustomModelArgs,
-};
-pub use project_rules::{
-    ensure_agents_md, load_project_rules, read_project_rule, save_project_rule, ProjectRuleContent,
-    ProjectRulesCatalog,
-};
-pub use agents::{
-    delete_user_agent, delete_user_persona, load_agents_catalog, save_user_agent, save_user_persona,
-    AgentDef, AgentsCatalog, PersonaDef,
 };
 pub use extensions::{
     add_mcp_server, load_extensions_hub, plugin_install, plugin_set_enabled, plugin_uninstall,
@@ -37,6 +33,10 @@ pub use grok_config::{load_grok_config_overview, GrokConfigOverview, McpServerIn
 pub use memory::{
     delete_memory_file, list_recent_media, load_memory_catalog, read_local_media, read_memory_file,
     set_memory_config_enabled, LocalMediaData, MemoryCatalog, MemoryFileContent, MemoryFileEntry,
+};
+pub use project_rules::{
+    ensure_agents_md, load_project_rules, read_project_rule, save_project_rule, ProjectRuleContent,
+    ProjectRulesCatalog,
 };
 pub use settings::{load_settings, save_settings, GuiSettings};
 

@@ -398,7 +398,10 @@ fn load_plugins() -> (Vec<PluginInfo>, Vec<String>) {
             Ok(out) => {
                 let err = String::from_utf8_lossy(&out.stderr);
                 if !err.trim().is_empty() {
-                    notes.push(format!("plugin list: {}", err.trim().chars().take(200).collect::<String>()));
+                    notes.push(format!(
+                        "plugin list: {}",
+                        err.trim().chars().take(200).collect::<String>()
+                    ));
                 }
             }
             Err(e) => notes.push(format!("plugin list failed: {e}")),
@@ -408,7 +411,7 @@ fn load_plugins() -> (Vec<PluginInfo>, Vec<String>) {
     // Also scan marketplace cache for known catalog (available, not installed)
     // Already handled in marketplace_plugins.
 
-    plugins.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    plugins.sort_by_key(|plugin| plugin.name.to_lowercase());
     (plugins, notes)
 }
 
@@ -527,7 +530,7 @@ fn load_marketplace_plugins(
             });
         }
     }
-    out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    out.sort_by_key(|plugin| plugin.name.to_lowercase());
     // Dedupe by name
     let mut seen = std::collections::HashSet::new();
     out.retain(|p| seen.insert(p.name.to_lowercase()));
@@ -604,11 +607,8 @@ fn read_config_doc() -> AppResult<DocumentMut> {
             fs::create_dir_all(parent)
                 .map_err(|e| AppError::Message(format!("create grok home: {e}")))?;
         }
-        fs::write(
-            &path,
-            "# Grok config — managed in part by KayG\n",
-        )
-        .map_err(|e| AppError::Message(format!("create config.toml: {e}")))?;
+        fs::write(&path, "# Grok config — managed in part by KayG\n")
+            .map_err(|e| AppError::Message(format!("create config.toml: {e}")))?;
     }
     let raw = fs::read_to_string(&path)
         .map_err(|e| AppError::Message(format!("read config.toml: {e}")))?;
@@ -671,8 +671,16 @@ pub fn add_mcp_server(args: AddMcpArgs) -> AppResult<McpServerInfo> {
             "MCP name must be alphanumeric, '-', or '_'".into(),
         ));
     }
-    let has_cmd = args.command.as_ref().map(|s| !s.trim().is_empty()).unwrap_or(false);
-    let has_url = args.url.as_ref().map(|s| !s.trim().is_empty()).unwrap_or(false);
+    let has_cmd = args
+        .command
+        .as_ref()
+        .map(|s| !s.trim().is_empty())
+        .unwrap_or(false);
+    let has_url = args
+        .url
+        .as_ref()
+        .map(|s| !s.trim().is_empty())
+        .unwrap_or(false);
     if has_cmd == has_url {
         return Err(AppError::Message(
             "Provide either a stdio command or an HTTP url (not both/neither)".into(),

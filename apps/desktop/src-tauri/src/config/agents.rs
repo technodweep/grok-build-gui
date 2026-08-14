@@ -360,8 +360,7 @@ pub fn delete_user_agent(name: &str) -> AppResult<()> {
 pub fn save_user_persona(name: &str, body: &str) -> AppResult<PersonaDef> {
     let name = sanitize_name(name)?;
     let dir = grok_home().join("personas");
-    fs::create_dir_all(&dir)
-        .map_err(|e| AppError::Message(format!("create personas dir: {e}")))?;
+    fs::create_dir_all(&dir).map_err(|e| AppError::Message(format!("create personas dir: {e}")))?;
     let path = dir.join(format!("{name}.toml"));
     fs::write(&path, body).map_err(|e| AppError::Message(format!("write persona: {e}")))?;
     let (description, instructions, model, effort, isolation) = parse_persona_toml(body);
@@ -383,9 +382,7 @@ pub fn delete_user_persona(name: &str) -> AppResult<()> {
     let name = sanitize_name(name)?;
     let path = grok_home().join("personas").join(format!("{name}.toml"));
     if !path.is_file() {
-        return Err(AppError::Message(format!(
-            "user persona not found: {name}"
-        )));
+        return Err(AppError::Message(format!("user persona not found: {name}")));
     }
     fs::remove_file(&path).map_err(|e| AppError::Message(format!("delete persona: {e}")))?;
     Ok(())
@@ -485,15 +482,15 @@ fn first_heading(raw: &str) -> Option<String> {
     None
 }
 
-fn parse_persona_toml(
-    raw: &str,
-) -> (
+type PersonaFields = (
     Option<String>,
     Option<String>,
     Option<String>,
     Option<String>,
     Option<String>,
-) {
+);
+
+fn parse_persona_toml(raw: &str) -> PersonaFields {
     let Ok(v) = raw.parse::<toml::Value>() else {
         // fallback: line scan
         let mut description = None;
@@ -539,6 +536,6 @@ mod tests {
         let raw = "---\nname: explore\ndescription: >\n  Fast agent\nmodel: inherit\n---\n\nBody\n";
         let fm = parse_md_frontmatter(raw);
         assert_eq!(fm.get("name").map(|s| s.as_str()), Some("explore"));
-        assert!(fm.get("description").is_some());
+        assert!(fm.contains_key("description"));
     }
 }

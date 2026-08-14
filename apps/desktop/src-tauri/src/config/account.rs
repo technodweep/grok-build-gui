@@ -57,8 +57,7 @@ pub struct AuthAccountInfo {
 pub fn load_auth_account() -> AuthAccountInfo {
     let home = grok_home();
     let path = home.join("auth.json");
-    let api_key_env =
-        std::env::var("XAI_API_KEY").is_ok() || std::env::var("GROK_API_KEY").is_ok();
+    let api_key_env = std::env::var("XAI_API_KEY").is_ok() || std::env::var("GROK_API_KEY").is_ok();
     let mut info = AuthAccountInfo {
         present: false,
         api_key_env,
@@ -102,7 +101,12 @@ pub fn load_auth_account() -> AuthAccountInfo {
     );
     info.zero_data_retention = bool_field(
         e,
-        &["zero_data_retention", "zeroDataRetention", "zdr", "zdr_enabled"],
+        &[
+            "zero_data_retention",
+            "zeroDataRetention",
+            "zdr",
+            "zdr_enabled",
+        ],
     );
     if info.zero_data_retention == Some(true) {
         info.privacy_note = Some(
@@ -192,12 +196,12 @@ fn enrich_path(cmd: &mut Command) {
 fn extract_urls(text: &str) -> Vec<String> {
     let mut urls = Vec::new();
     for word in text.split_whitespace() {
-        let w = word
-            .trim_matches(|c: char| c == ')' || c == '(' || c == ',' || c == '"' || c == '\'');
-        if w.starts_with("https://") || w.starts_with("http://") {
-            if !urls.iter().any(|u: &String| u == w) {
-                urls.push(w.to_string());
-            }
+        let w =
+            word.trim_matches(|c: char| c == ')' || c == '(' || c == ',' || c == '"' || c == '\'');
+        if (w.starts_with("https://") || w.starts_with("http://"))
+            && !urls.iter().any(|u: &String| u == w)
+        {
+            urls.push(w.to_string());
         }
     }
     urls
@@ -213,8 +217,7 @@ fn extract_device_code(text: &str) -> Option<String> {
             let t = tok.trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != '-');
             if t.len() >= 4
                 && t.len() <= 20
-                && t.chars()
-                    .all(|c| c.is_ascii_alphanumeric() || c == '-')
+                && t.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
             {
                 if t.eq_ignore_ascii_case("code") || t.contains("http") {
                     continue;
@@ -228,10 +231,7 @@ fn extract_device_code(text: &str) -> Option<String> {
     None
 }
 
-fn run_with_timeout(
-    mut cmd: Command,
-    timeout: Duration,
-) -> AppResult<std::process::Output> {
+fn run_with_timeout(mut cmd: Command, timeout: Duration) -> AppResult<std::process::Output> {
     let mut child = cmd
         .spawn()
         .map_err(|e| AppError::Agent(format!("spawn: {e}")))?;
@@ -498,14 +498,12 @@ const BUILTIN_PROFILES: &[&str] = &["off", "workspace", "devbox", "read-only", "
 pub fn load_sandbox_status() -> SandboxStatus {
     let config_path = config_toml_path();
     let sandbox_toml = grok_home().join("sandbox.toml");
-    let mut notes = Vec::new();
-    notes.push(
-        "Agent process sandbox applies at session start (CLI/env/config). Changing config requires a new session.".into(),
-    );
-    notes.push(
+    let notes = vec![
+        "Agent process sandbox applies at session start (CLI/env/config). Changing config requires a new session."
+            .to_string(),
         "GUI client fs/* handlers always stay project-sandboxed (independent of agent profile)."
-            .into(),
-    );
+            .to_string(),
+    ];
 
     let config_profile = read_sandbox_profile_from_config();
     let env_profile = std::env::var("GROK_SANDBOX")

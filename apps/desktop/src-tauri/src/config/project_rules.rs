@@ -94,7 +94,10 @@ pub fn load_project_rules(project_cwd: Option<&str>) -> ProjectRulesCatalog {
                     push_file(&p, rel, "project", true, &mut files);
                 }
             }
-            if !files.iter().any(|f| f.scope == "project" || f.scope == "rules") {
+            if !files
+                .iter()
+                .any(|f| f.scope == "project" || f.scope == "rules")
+            {
                 notes.push(
                     "No project AGENTS.md or .grok/rules yet — create one to set conventions."
                         .into(),
@@ -211,9 +214,7 @@ pub fn read_project_rule(path: &str, max_chars: usize) -> AppResult<ProjectRuleC
         return Err(AppError::Message("path is empty".into()));
     }
     let p = PathBuf::from(path);
-    if !path_allowed_write(&p, None)
-        && !path_looks_safe_read(&p)
-    {
+    if !path_allowed_write(&p, None) && !path_looks_safe_read(&p) {
         // Allow read of discovered paths under home/project that exist
         if !p.is_file() {
             return Err(AppError::Message("path not readable".into()));
@@ -259,8 +260,7 @@ pub fn save_project_rule(path: &str, content: &str, project_cwd: Option<&str>) -
     let p = PathBuf::from(path);
     // For new files, ensure parent exists and path is allowed
     if let Some(parent) = p.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|e| AppError::Message(format!("create parent: {e}")))?;
+        fs::create_dir_all(parent).map_err(|e| AppError::Message(format!("create parent: {e}")))?;
     }
     if !path_allowed_write(&p, project_cwd) {
         return Err(AppError::Message(
@@ -303,6 +303,6 @@ mod tests {
 
     #[test]
     fn root_names_include_agents() {
-        assert!(ROOT_NAMES.iter().any(|n| *n == "AGENTS.md"));
+        assert!(ROOT_NAMES.contains(&"AGENTS.md"));
     }
 }

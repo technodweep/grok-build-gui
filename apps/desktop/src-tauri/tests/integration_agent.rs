@@ -74,8 +74,7 @@ async fn integrate_list_sessions_ephemeral() {
             eprintln!("list sessions error: {msg}");
             // Accept auth_required / empty — only hard-fail on missing binary.
             assert!(
-                !msg.to_lowercase().contains("grok not found")
-                    && !msg.contains("GrokNotFound"),
+                !msg.to_lowercase().contains("grok not found") && !msg.contains("GrokNotFound"),
                 "grok binary missing: {msg}"
             );
         }

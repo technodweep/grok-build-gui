@@ -216,7 +216,10 @@ impl AcpHandle {
             session_id: s.session_id.clone(),
             cwd: s.cwd.clone(),
             model_id: s.model_id.clone(),
-            effort: s.effort.clone().or_else(|| live.models.current_effort.clone()),
+            effort: s
+                .effort
+                .clone()
+                .or_else(|| live.models.current_effort.clone()),
         })
     }
 
@@ -334,7 +337,12 @@ impl AcpHandle {
         let mut models = parse_models_state(params);
         // Preserve effort if update omitted it.
         if models.current_effort.is_none() {
-            if let Some(prev) = self.inner.lock().as_ref().map(|l| l.models.current_effort.clone()) {
+            if let Some(prev) = self
+                .inner
+                .lock()
+                .as_ref()
+                .map(|l| l.models.current_effort.clone())
+            {
                 models.current_effort = prev;
             }
         }
@@ -706,11 +714,7 @@ impl AcpHandle {
     }
 
     /// Switch the active session's model via ACP `session/set_model`.
-    pub async fn set_model(
-        &self,
-        app: AppHandle,
-        model_id: &str,
-    ) -> AppResult<SessionModelsState> {
+    pub async fn set_model(&self, app: AppHandle, model_id: &str) -> AppResult<SessionModelsState> {
         let session = self.session().ok_or(AppError::NoSession)?;
         let model_id = model_id.trim();
         if model_id.is_empty() {
@@ -752,11 +756,7 @@ impl AcpHandle {
     }
 
     /// Set reasoning effort via ACP `session/set_mode` (Grok maps modes → effort levels).
-    pub async fn set_effort(
-        &self,
-        app: AppHandle,
-        effort: &str,
-    ) -> AppResult<SessionModelsState> {
+    pub async fn set_effort(&self, app: AppHandle, effort: &str) -> AppResult<SessionModelsState> {
         let session = self.session().ok_or(AppError::NoSession)?;
         let effort = effort.trim();
         if effort.is_empty() {
@@ -1105,10 +1105,7 @@ impl AcpHandle {
             // Also send protocol-level cancel for each in-flight prompt request id.
             let ids: Vec<u64> = live.in_flight_prompts.lock().iter().copied().collect();
             for id in &ids {
-                let line = protocol::notification(
-                    "$/cancel_request",
-                    json!({ "requestId": id }),
-                );
+                let line = protocol::notification("$/cancel_request", json!({ "requestId": id }));
                 let _ = live.cmd_tx.send(AgentCommand::Write(line));
             }
             ids
@@ -1316,9 +1313,7 @@ fn is_ask_user_question_tool(tool_call: Option<&Value>) -> bool {
 
 fn is_exit_plan_mode_tool(tool_call: Option<&Value>) -> bool {
     let blob = tool_call_blob(tool_call);
-    blob.contains("exit_plan_mode")
-        || blob.contains("exit plan mode")
-        || blob.contains("exit-plan")
+    blob.contains("exit_plan_mode") || blob.contains("exit plan mode") || blob.contains("exit-plan")
 }
 
 fn is_enter_plan_mode_tool(tool_call: Option<&Value>) -> bool {
@@ -1457,11 +1452,7 @@ async fn handle_agent_request(
             let key = request_id_key(&id);
             pending_elicit.lock().insert(key, tx);
             let _ = app.emit(events::ELICITATION_REQUEST, &payload);
-            let outcome = match tokio::time::timeout(
-                std::time::Duration::from_secs(600),
-                rx,
-            )
-            .await
+            let outcome = match tokio::time::timeout(std::time::Duration::from_secs(600), rx).await
             {
                 Ok(Ok(v)) => v,
                 Ok(Err(_)) => json!({ "action": "cancel" }),
@@ -1488,11 +1479,7 @@ async fn handle_agent_request(
             let key = request_id_key(&id);
             pending_user_q.lock().insert(key, tx);
             let _ = app.emit(events::USER_QUESTION_REQUEST, &payload);
-            let outcome = match tokio::time::timeout(
-                std::time::Duration::from_secs(600),
-                rx,
-            )
-            .await
+            let outcome = match tokio::time::timeout(std::time::Duration::from_secs(600), rx).await
             {
                 Ok(Ok(v)) => v,
                 Ok(Err(_)) => json!({ "outcome": "skip_interview" }),
@@ -1518,11 +1505,7 @@ async fn handle_agent_request(
             let key = request_id_key(&id);
             pending_plan.lock().insert(key, tx);
             let _ = app.emit(events::PLAN_APPROVAL_REQUEST, &payload);
-            let outcome = match tokio::time::timeout(
-                std::time::Duration::from_secs(600),
-                rx,
-            )
-            .await
+            let outcome = match tokio::time::timeout(std::time::Duration::from_secs(600), rx).await
             {
                 // Default to request_changes (stay in plan) rather than abandon on hang-up.
                 Ok(Ok(v)) => v,
