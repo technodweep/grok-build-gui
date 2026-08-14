@@ -1,9 +1,15 @@
 [package]
 name = "kayg"
 version = "0.1.0"
-description = "Independent desktop client from Technodweep, compatible with the Grok Build CLI over ACP"
+description = "KayG is an independent open-source Grok Build GUI and cross-platform desktop client by Technodweep"
 authors = ["Technodweep"]
 edition = "2021"
+license.workspace = true
+homepage = "https://www.technodweep.com/"
+repository = "https://github.com/technodweep/grok-build-gui"
+keywords = ["grok-build", "grok-gui", "desktop", "tauri", "acp"]
+categories = ["development-tools"]
+publish = false
 
 [lib]
 name = "kayg_lib"

@@ -2,13 +2,25 @@
   "name": "kayg",
   "private": true,
   "version": "0.1.0",
-  "description": "Independent open-source desktop client from Technodweep, compatible with the Grok Build CLI",
+  "description": "KayG is an independent open-source Grok Build GUI and cross-platform desktop client by Technodweep",
   "author": "Technodweep",
+  "license": "Apache-2.0",
   "homepage": "https://www.technodweep.com/",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/technodweep/kayg.git"
+    "url": "git+https://github.com/technodweep/grok-build-gui.git"
   },
+  "bugs": {
+    "url": "https://github.com/technodweep/grok-build-gui/issues"
+  },
+  "keywords": [
+    "grok-build",
+    "grok-build-gui",
+    "grok-desktop",
+    "grok-cli",
+    "tauri",
+    "agent-client-protocol"
+  ],
   "scripts": {
     "dev": "./scripts/dev.sh",
     "dev:raw": "pnpm --dir apps/desktop tauri dev",

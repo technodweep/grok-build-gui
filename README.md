@@ -1,15 +1,54 @@
-# KayG
+# KayG — Open-source Grok Build GUI for Desktop
 
-<img src="assets/branding/kayg-logo.svg" alt="KayG logo" width="160" />
+<p align="center">
+  <img
+    src="assets/branding/kayg-logo.svg"
+    alt="KayG, an open-source Grok Build desktop GUI by Technodweep"
+    width="180"
+  />
+</p>
 
-[A Technodweep company](https://www.technodweep.com/)
+**KayG is an independent, open-source Grok Build GUI and cross-platform Grok
+desktop client from [Technodweep](https://www.technodweep.com/).** It gives the
+[Grok Build CLI](https://docs.x.ai/build/overview) a native visual interface on
+Linux, macOS, and Windows, powered by **Tauri 2**, React, Rust, and the
+[Agent Client Protocol (ACP)](https://agentclientprotocol.com).
 
-KayG is an independent, open-source desktop GUI from [Technodweep](https://www.technodweep.com/), compatible with the [Grok Build CLI](https://docs.x.ai/build/overview). If you are looking for a Grok desktop experience on Linux, macOS, or Windows, KayG provides a native **Tauri 2** client that connects to `grok agent stdio` over the [Agent Client Protocol (ACP)](https://agentclientprotocol.com).
-
-The CLI agent remains the brain (auth, tools, MCP, sessions). This app is the visual shell.
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Platforms: Linux, macOS, Windows](https://img.shields.io/badge/Platforms-Linux%20%7C%20macOS%20%7C%20Windows-ff665a.svg)](docs/packaging.md)
+[![Built by Technodweep](https://img.shields.io/badge/Built%20by-Technodweep-f5b83b.svg)](https://www.technodweep.com/)
 
 > [!IMPORTANT]
-> KayG is an independent community project. It is not affiliated with, endorsed by, or sponsored by xAI. Grok and Grok Build are trademarks of xAI.
+> KayG is an independent community project. It is not affiliated with,
+> endorsed by, or sponsored by xAI. Grok and Grok Build are trademarks of xAI.
+
+## Grok Build, with a native desktop interface
+
+KayG is a visual shell for the Grok Build coding agent. The Grok CLI remains
+the brain and continues to own authentication, tools, MCP servers, sessions,
+and model access. KayG launches `grok agent stdio` and communicates with it over
+ACP, adding a desktop workflow without reimplementing the agent.
+
+Unlike a wrapper around `grok.com`, KayG is designed specifically as a **GUI
+for the Grok Build CLI** and its coding-agent workflows.
+
+```text
+KayG desktop app  <── Agent Client Protocol ──>  Grok Build CLI  <──>  xAI
+```
+
+## Download
+
+Release tags beginning with `v` automatically build KayG packages for Linux,
+macOS, and Windows and publish them to
+[GitHub Releases](https://github.com/technodweep/grok-build-gui/releases).
+If a public release is not available yet, follow the source-build instructions
+below.
+
+| Platform | Packages |
+|---|---|
+| Linux | `.deb`, `.rpm`, `.AppImage` |
+| macOS | `.app`, `.dmg` |
+| Windows | NSIS `.exe`, `.msi` |
 
 ## Features
 
@@ -20,32 +59,70 @@ The CLI agent remains the brain (auth, tools, MCP, sessions). This app is the vi
 - Hubs: Extensions (MCP/skills/plugins), Agents, Tasks, Memory, Account, Rules
 - Agent terminals (live panel + tool-card embed), workflows / loops / goals
 - Memory (`/remember`, browse, flush/dream) and media (`/imagine` gallery)
-- Project AGENTS.md editor + custom model endpoints in `config.toml`
-- Context & usage, find-in-scrollback, raw markdown, themes
-- Login / logout / doctor / sandbox profile without the TUI
-
-Docs:
-
-- **[Changelog](CHANGELOG.md)** — v0.1.0 notes
-- **[Full feature parity plan](docs/full-parity-plan.md)** — phases A–I inventory
-- **[Multi-repository workspaces plan](docs/multi-repo-workspaces-plan.md)** — optional workspace dashboard, UI wireframes, runtime architecture, and delivery phases
-- [Architecture](docs/architecture.md)
-- [Shipped ACP surface checklist](docs/acp-surface.md)
-- [Packaging](docs/packaging.md)
+- Project `AGENTS.md` editor and custom model endpoints in `config.toml`
+- Context and usage, find-in-scrollback, raw Markdown, and themes
+- Login, logout, doctor, and sandbox controls without returning to the TUI
 
 ## Requirements
 
-### Runtime
+### Grok Build runtime
 
-- **Grok CLI ≥ 0.2.x** on `PATH` (or `~/.grok/bin/grok`)
-- Authenticated (`grok` once in a terminal, or `XAI_API_KEY`)
+- **Grok CLI 0.2.x or newer** on `PATH` (or at `~/.grok/bin/grok`)
+- An authenticated Grok session or an `XAI_API_KEY`
 
 ```bash
 curl -fsSL https://x.ai/cli/install.sh | bash
 grok --version
 ```
 
-### Build (Linux)
+### Source-build toolchain
+
+- Rust stable (`rustup`)
+- Node.js **22 or newer**
+- `pnpm`
+
+Linux builds also require WebKitGTK, GTK, and the standard Tauri system
+dependencies listed under [Linux development dependencies](#linux-development-dependencies).
+
+## Frequently asked questions
+
+### Is KayG an official xAI application?
+
+No. KayG is an independent Technodweep community project. It is compatible
+with the Grok Build CLI but is not affiliated with, endorsed by, or sponsored
+by xAI.
+
+### Is KayG a wrapper around the Grok website?
+
+No. KayG connects to `grok agent stdio` over ACP and presents the Grok Build
+coding agent as a native desktop application.
+
+### Does KayG include the Grok CLI or an xAI subscription?
+
+No. Install and authenticate the Grok CLI separately. Any Grok account,
+subscription, API access, and usage charges remain between you and xAI.
+
+### Which operating systems does KayG support?
+
+KayG is designed for Linux, macOS, and Windows. The release workflow builds
+native packages for all three platforms.
+
+### Can KayG use an xAI API key?
+
+Yes. Set `XAI_API_KEY`, or authenticate by running `grok` in a terminal before
+opening KayG.
+
+## Build from source
+
+```bash
+pnpm install --dir apps/desktop
+pnpm dev
+```
+
+`pnpm dev` uses `./scripts/dev.sh`, which configures the GTK/WebKit environment
+when needed. To start Tauri without the helper, use `pnpm dev:raw`.
+
+### Linux development dependencies
 
 ```bash
 sudo apt update
@@ -55,36 +132,12 @@ sudo apt install -y \
   curl wget file libssl-dev libxdo-dev pkg-config
 ```
 
-### Toolchain
+If system development packages are unavailable, `./scripts/dev.sh` can use
+dependencies under `~/.local/tauri-deps`.
 
-- Rust stable (`rustup`)
-- Node.js **≥ 22**
-- `pnpm`
-
-## Develop
-
-```bash
-pnpm install --dir apps/desktop
-pnpm dev          # uses ./scripts/dev.sh (sets GTK/WebKit env if needed)
-```
-
-If `pnpm dev` fails with `gdk-3.0 was not found` / `pkg-config`, install Tauri Linux deps:
-
-```bash
-sudo apt update
-sudo apt install -y \
-  libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev \
-  patchelf libayatana-appindicator3-dev build-essential \
-  libssl-dev libxdo-dev pkg-config
-```
-
-Or run with the helper (uses `~/.local/tauri-deps` when system `-dev` packages are missing):
-
-```bash
-./scripts/dev.sh
-```
-
-**WebKit blank window (Linux):** the app sets `WEBKIT_DISABLE_DMABUF_RENDERER=1` by default. Prefer `127.0.0.1` for the Vite dev URL (already configured).
+**Blank WebKit window on Linux:** KayG sets
+`WEBKIT_DISABLE_DMABUF_RENDERER=1` by default. The Vite development URL already
+uses `127.0.0.1` for better WebKit compatibility.
 
 ### Local CI
 
@@ -97,9 +150,9 @@ pnpm ci
 ## Package
 
 ```bash
-# Linux (from repo root)
+# Linux (from the repository root)
 ./scripts/build-linux.sh
-# artifacts: target/release/bundle/{deb,appimage,rpm}/
+# target/release/bundle/{deb,appimage,rpm}/
 
 # macOS
 cd apps/desktop && pnpm tauri build --bundles app,dmg
@@ -108,36 +161,61 @@ cd apps/desktop && pnpm tauri build --bundles app,dmg
 cd apps/desktop && pnpm tauri build --bundles nsis,msi
 ```
 
-Full packaging notes: [docs/packaging.md](docs/packaging.md).
+See the [packaging guide](docs/packaging.md) for platform-specific details.
 
-Release tags `v*` trigger GitHub Actions to build **Linux + macOS + Windows** packages and publish a Release.
+## Documentation
 
-## Layout
+- **[Changelog](CHANGELOG.md)** — v0.1.0 notes
+- **[Architecture](docs/architecture.md)** — desktop and ACP design
+- **[Shipped ACP surface checklist](docs/acp-surface.md)** — supported protocol surface
+- **[Full feature parity plan](docs/full-parity-plan.md)** — phases A–I inventory
+- **[Multi-repository workspaces plan](docs/multi-repo-workspaces-plan.md)** — workspace dashboard and delivery phases
+- **[Packaging](docs/packaging.md)** — Linux, macOS, and Windows builds
 
-```
-apps/desktop/          Tauri app (React UI + src-tauri)
-docs/                  Architecture, ACP checklist, packaging
-scripts/               Local CI + Linux build helpers
-.github/workflows/     CI + release
+## Repository layout
+
+```text
+apps/desktop/          Tauri app (React UI + Rust backend)
+docs/                  Architecture, ACP checklist, and packaging
+scripts/               Local CI and Linux build helpers
+.github/workflows/     CI and cross-platform releases
 ```
 
 ## Configuration
 
-| Env | Meaning |
-|-----|---------|
-| `GROK_HOME` | Override Grok config/session root (default `~/.grok`) |
-| `GROK_BINARY` | Path to `grok` binary |
-| `XAI_API_KEY` | API key auth (optional if browser auth exists) |
-| `RUST_LOG` | Tracing filter (e.g. `info,kayg_lib=debug`) |
+| Environment variable | Meaning |
+|---|---|
+| `GROK_HOME` | Override the Grok config/session root (default `~/.grok`) |
+| `GROK_BINARY` | Path to the `grok` binary |
+| `XAI_API_KEY` | API-key authentication, optional when browser auth exists |
+| `RUST_LOG` | Tracing filter, for example `info,kayg_lib=debug` |
 
-GUI settings (theme, binary override, last project) live in `~/.grok/gui/settings.json`.
+GUI settings such as theme, binary override, and last project live in
+`~/.grok/gui/settings.json`.
 
 ## Safety
 
-- Default permission mode is **ask** (no `--always-approve` unless you enable yolo).
-- Client FS handlers are sandboxed to the session project directory.
-- Settings → “Always approve tools” opts into yolo for new/resume connections.
+- The default permission mode is **Ask**.
+- Client filesystem handlers are sandboxed to the session project directory.
+- Enabling “Always approve tools” explicitly opts new and resumed connections
+  into automatic tool approval.
 
-## License
+## Contributing
 
-MIT — see [LICENSE](LICENSE).
+Issues and pull requests are welcome. Please describe the user problem, keep
+changes focused, and run `pnpm ci` before submitting a pull request.
+
+## Built by Technodweep
+
+KayG is created and maintained by
+[Technodweep](https://www.technodweep.com/). Visit our website to explore our
+other products and engineering work.
+
+## License and trademarks
+
+KayG source code and documentation are licensed under the
+[Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for attribution.
+
+The KayG name, logo, and application icons are Technodweep brand assets and
+are covered by the [KayG trademark and brand policy](TRADEMARKS.md), not by the
+Apache License 2.0. Grok and Grok Build are trademarks of xAI.
