@@ -84,3 +84,83 @@ export function toolOutputFromUpdate(update: {
   }
   return {};
 }
+
+export type ToolLikeForChanges = {
+  title?: string;
+  input?: string;
+  output?: string;
+  locations?: string[];
+  contentBlocks?: ToolContentBlock[];
+  toolKind?: string;
+};
+
+function pathFromToolInput(input?: string): string[] {
+  if (!input?.trim()) return [];
+  const out: string[] = [];
+  try {
+    const j = JSON.parse(input) as Record<string, unknown>;
+    for (const k of [
+      "path",
+      "file_path",
+      "filePath",
+      "target_file",
+      "targetFile",
+      "old_path",
+      "new_path",
+      "filename",
+    ]) {
+      const v = j[k];
+      if (typeof v === "string" && v.trim()) out.push(v.trim());
+    }
+  } catch {
+    // bare path-ish line
+    const m = input.match(/(?:^|[\s"'])(\/[^\s"'\\]+|[A-Za-z]:\\[^\s"'\\]+)/);
+    if (m?.[1]) out.push(m[1]);
+  }
+  return out;
+}
+
+function looksLikeUnifiedDiff(text: string): boolean {
+  return (
+    text.includes("--- a/") ||
+    text.includes("+++ b/") ||
+    text.includes("\n@@ ") ||
+    /^diff --git /m.test(text)
+  );
+}
+
+/** Collect unique file paths + combined unified diff from a set of tools. */
+export function collectToolFileChanges(tools: ToolLikeForChanges[]): {
+  paths: string[];
+  changeset: string | null;
+} {
+  const pathSet = new Set<string>();
+  const diffParts: string[] = [];
+
+  for (const t of tools) {
+    for (const loc of t.locations ?? []) {
+      if (!loc || loc.startsWith("terminal:") || loc.startsWith("term:")) continue;
+      pathSet.add(loc);
+    }
+    for (const p of pathFromToolInput(t.input)) pathSet.add(p);
+    for (const b of t.contentBlocks ?? []) {
+      if (typeof b.path === "string" && b.path.trim()) pathSet.add(b.path.trim());
+    }
+    if (t.contentBlocks?.length) {
+      const d = blocksToDiffText(t.contentBlocks);
+      if (d) {
+        diffParts.push(`### ${t.title || "tool"}\n${d}`);
+        continue;
+      }
+    }
+    if (t.output && looksLikeUnifiedDiff(t.output)) {
+      diffParts.push(`### ${t.title || "tool"}\n${t.output}`);
+    }
+  }
+
+  const paths = [...pathSet].sort((a, b) => a.localeCompare(b));
+  return {
+    paths,
+    changeset: diffParts.length > 0 ? diffParts.join("\n\n") : null,
+  };
+}

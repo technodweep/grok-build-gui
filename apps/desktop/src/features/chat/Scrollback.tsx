@@ -1,12 +1,29 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useEffect, useMemo, useRef, type CSSProperties } from "react";
-import { killTerminal, releaseTerminal } from "../../shared/api";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type SyntheticEvent,
+} from "react";
+import { getSessionHistory, killTerminal, releaseTerminal } from "../../shared/api";
+import {
+  HISTORY_INITIAL_LIMIT,
+  HISTORY_PAGE_SIZE,
+  hydrateHistoryPrepend,
+} from "../../shared/historyHydrate";
 import { LocalMedia } from "../../shared/LocalMedia";
 import { MarkdownBody } from "../../shared/MarkdownBody";
 import { extractMediaPaths, mediaKind } from "../../shared/mediaPaths";
 import { useAppStore } from "../../shared/store";
 import { asDisplayText } from "../../shared/text";
-import { blockDisplayText } from "../../shared/toolContent";
+import {
+  blockDisplayText,
+  blocksToDiffText,
+  collectToolFileChanges,
+} from "../../shared/toolContent";
 import type { ScrollItem, ToolContentBlock } from "../../shared/types";
 import { DiffView } from "./DiffView";
 
@@ -54,7 +71,13 @@ function planStatusIcon(status: string): string {
 function formatTs(ts?: number): string | null {
   if (ts == null || !Number.isFinite(ts)) return null;
   try {
-    return new Date(ts).toLocaleTimeString(undefined, {
+    const d = new Date(ts);
+    const sameYear = d.getFullYear() === new Date().getFullYear();
+    // Date + time so multi-day sessions are readable (year only if not current).
+    return d.toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      ...(sameYear ? {} : { year: "numeric" }),
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
@@ -70,13 +93,14 @@ function ContentBlocks({ blocks }: { blocks: ToolContentBlock[] }) {
       {blocks.map((b, i) => {
         const t = (b.type ?? "").toLowerCase();
         if (t === "diff") {
+          const diffText = blocksToDiffText([b]);
           return (
             <div key={i}>
               {b.path ? (
                 <div
                   style={{
                     fontSize: 10,
-                    color: "#7c9cff",
+                    color: "var(--gb-accent)",
                     fontFamily: "ui-monospace, Menlo, monospace",
                     marginBottom: 4,
                   }}
@@ -84,6 +108,7 @@ function ContentBlocks({ blocks }: { blocks: ToolContentBlock[] }) {
                   {b.path}
                 </div>
               ) : null}
+              {diffText ? <DiffView text={diffText} /> : null}
             </div>
           );
         }
@@ -208,55 +233,124 @@ function LabelRow({
 type FoldPolicy = "default" | "all-open" | "all-closed";
 
 type ToolScrollItem = Extract<ScrollItem, { kind: "tool" }>;
+type ThoughtScrollItem = Extract<ScrollItem, { kind: "thought" }>;
 
 type DisplayRow =
   | { kind: "single"; itemIndex: number; item: ScrollItem }
-  | { kind: "tools"; itemIndices: number[]; tools: ToolScrollItem[] };
+  | {
+      kind: "activity";
+      itemIndices: number[];
+      thoughts: ThoughtScrollItem[];
+      tools: ToolScrollItem[];
+    };
 
-/** Consecutive tools become one group when 2+ appear back-to-back. */
-function buildDisplayRows(items: ScrollItem[]): DisplayRow[] {
-  const rows: DisplayRow[] = [];
-  let i = 0;
-  while (i < items.length) {
-    const it = items[i]!;
-    if (it.kind === "tool") {
-      const tools: ToolScrollItem[] = [];
-      const indices: number[] = [];
-      while (i < items.length && items[i]!.kind === "tool") {
-        tools.push(items[i] as ToolScrollItem);
-        indices.push(i);
-        i += 1;
-      }
-      if (tools.length === 1) {
-        rows.push({ kind: "single", itemIndex: indices[0]!, item: tools[0]! });
-      } else {
-        rows.push({ kind: "tools", itemIndices: indices, tools });
-      }
-    } else {
-      rows.push({ kind: "single", itemIndex: i, item: it });
-      i += 1;
-    }
-  }
-  return rows;
+function isActivityKind(kind: ScrollItem["kind"]): boolean {
+  return kind === "thought" || kind === "tool";
+}
+
+/** Merge many thought chunks into one explanation for a single card. */
+function mergeThoughts(thoughts: ThoughtScrollItem[]): ThoughtScrollItem[] {
+  if (thoughts.length <= 1) return thoughts;
+  const text = thoughts
+    .map((t) => asDisplayText(t.text).trim())
+    .filter(Boolean)
+    .join("\n\n");
+  return [
+    {
+      id: `merged-thought:${thoughts.map((t) => t.id).join("+")}`,
+      kind: "thought",
+      text,
+      ts: thoughts[0]?.ts,
+    },
+  ];
 }
 
 /**
- * Props for <details>. When fold policy is default, leave uncontrolled so the
- * user can expand/collapse freely (including after a tool completes).
- * all-open / all-closed force open state via remount key + controlled open.
+ * Build display rows so each user turn has at most ONE activity card:
+ * all thinking in that turn is merged into a single explanation, and all tools
+ * share that card. Agent/system/plan messages stay in order after the activity.
+ *
+ * This avoids "Thinking · Thinking ×2 · Thinking ×5" noise when the model
+ * interleaves short agent chunks between tool/think bursts.
  */
-function detailsFoldProps(
-  policy: FoldPolicy,
-  defaultOpen: boolean,
-  remountKey: string,
-): { key: string; open?: boolean; defaultOpen?: boolean } {
-  if (policy === "all-open") {
-    return { key: `${remountKey}::open`, open: true };
+function buildDisplayRows(items: ScrollItem[]): DisplayRow[] {
+  const rows: DisplayRow[] = [];
+  let i = 0;
+
+  while (i < items.length) {
+    // --- User turn boundary ---
+    if (items[i]!.kind === "user") {
+      rows.push({ kind: "single", itemIndex: i, item: items[i]! });
+      i += 1;
+
+      const thoughts: ThoughtScrollItem[] = [];
+      const tools: ToolScrollItem[] = [];
+      const actIndices: number[] = [];
+      const afterActivity: DisplayRow[] = [];
+
+      while (i < items.length && items[i]!.kind !== "user") {
+        const cur = items[i]!;
+        if (cur.kind === "thought") {
+          thoughts.push(cur);
+          actIndices.push(i);
+        } else if (cur.kind === "tool") {
+          tools.push(cur);
+          actIndices.push(i);
+        } else {
+          // agent | plan | system — keep chronological after the one activity card
+          afterActivity.push({ kind: "single", itemIndex: i, item: cur });
+        }
+        i += 1;
+      }
+
+      if (thoughts.length > 0 || tools.length > 0) {
+        rows.push({
+          kind: "activity",
+          itemIndices: actIndices,
+          thoughts: mergeThoughts(thoughts),
+          tools,
+        });
+      }
+      for (const r of afterActivity) rows.push(r);
+      continue;
+    }
+
+    // --- Leading items before the first user message (resume / system) ---
+    if (isActivityKind(items[i]!.kind)) {
+      const thoughts: ThoughtScrollItem[] = [];
+      const tools: ToolScrollItem[] = [];
+      const actIndices: number[] = [];
+      while (i < items.length && items[i]!.kind !== "user") {
+        const cur = items[i]!;
+        if (cur.kind === "thought") {
+          thoughts.push(cur);
+          actIndices.push(i);
+        } else if (cur.kind === "tool") {
+          tools.push(cur);
+          actIndices.push(i);
+        } else {
+          break;
+        }
+        i += 1;
+      }
+      // Also pull tools/thoughts that appear later before next user, but keep
+      // agent messages in place by only merging pure activity runs here for prefix.
+      if (thoughts.length > 0 || tools.length > 0) {
+        rows.push({
+          kind: "activity",
+          itemIndices: actIndices,
+          thoughts: mergeThoughts(thoughts),
+          tools,
+        });
+      }
+      continue;
+    }
+
+    rows.push({ kind: "single", itemIndex: i, item: items[i]! });
+    i += 1;
   }
-  if (policy === "all-closed") {
-    return { key: `${remountKey}::closed`, open: false };
-  }
-  return { key: remountKey, defaultOpen };
+
+  return rows;
 }
 
 function toolStatusTone(status: string): string {
@@ -266,11 +360,49 @@ function toolStatusTone(status: string): string {
   return "run";
 }
 
-function groupStatusLabel(tools: ToolScrollItem[]): string {
-  const tones = tools.map((t) => toolStatusTone(t.status));
-  if (tones.some((t) => t === "run")) return "running";
-  if (tones.some((t) => t === "fail")) return "failed";
-  return "completed";
+/** True while this turn's thinking/tools are still in flight. */
+function isActivityLive(
+  tools: ToolScrollItem[],
+  itemIndices: number[],
+  items: ScrollItem[],
+  busy: boolean,
+): boolean {
+  if (tools.some((t) => toolStatusTone(t.status) === "run")) return true;
+
+  const lastIdx = itemIndices.length ? Math.max(...itemIndices) : -1;
+  if (lastIdx < 0) return false;
+
+  // Next user message means this turn is over.
+  for (let j = lastIdx + 1; j < items.length; j++) {
+    if (items[j]!.kind === "user") return false;
+  }
+
+  // Turn still busy (streaming thought/tools/agent).
+  if (busy) return true;
+
+  // If there's already a substantial agent reply after the last activity index,
+  // treat as done even if busy flipped slowly.
+  for (let j = lastIdx + 1; j < items.length; j++) {
+    const it = items[j]!;
+    if (it.kind === "agent" && asDisplayText(it.text).trim().length > 40) return false;
+  }
+
+  // Not busy → collapsed by default (user can expand for full explanation).
+  return false;
+}
+
+function activityStatusLabel(
+  thoughts: ThoughtScrollItem[],
+  tools: ToolScrollItem[],
+  live: boolean,
+): string {
+  if (live) {
+    if (tools.some((t) => toolStatusTone(t.status) === "run")) return "working";
+    if (thoughts.length) return "thinking";
+    return "working";
+  }
+  if (tools.some((t) => toolStatusTone(t.status) === "fail")) return "failed";
+  return "done";
 }
 
 function ToolTerminalEmbed({ terminalId }: { terminalId: string }) {
@@ -402,7 +534,50 @@ const termBtn: CSSProperties = {
   cursor: "pointer",
 };
 
-/** Single tool card — collapsed by default; always expandable after complete. */
+/**
+ * Reliable collapsible open state.
+ * - autoOpen → force open while true
+ * - when autoOpen ends: collapse if collapseWhenAutoEnds, else keep open (full explanation)
+ */
+function useDetailsOpen(
+  foldPolicy: FoldPolicy,
+  autoOpen = false,
+  opts?: { collapseWhenAutoEnds?: boolean; defaultOpen?: boolean },
+): {
+  open: boolean;
+  onToggle: (e: SyntheticEvent<HTMLDetailsElement>) => void;
+} {
+  const collapseWhenAutoEnds = opts?.collapseWhenAutoEnds ?? true;
+  const [open, setOpen] = useState(autoOpen || !!opts?.defaultOpen);
+  const prevAuto = useRef(autoOpen);
+
+  useEffect(() => {
+    if (foldPolicy === "all-open") {
+      setOpen(true);
+      return;
+    }
+    if (foldPolicy === "all-closed") {
+      setOpen(false);
+      return;
+    }
+    if (autoOpen) {
+      setOpen(true);
+    } else if (prevAuto.current && !autoOpen) {
+      setOpen(collapseWhenAutoEnds ? false : true);
+    }
+    prevAuto.current = autoOpen;
+  }, [foldPolicy, autoOpen, collapseWhenAutoEnds]);
+
+  return {
+    open,
+    onToggle: (e) => {
+      if (foldPolicy === "all-open" || foldPolicy === "all-closed") return;
+      setOpen(e.currentTarget.open);
+    },
+  };
+}
+
+/** Single tool card — collapsed by default; always expandable. */
 function ToolCard({
   item,
   foldPolicy,
@@ -417,193 +592,359 @@ function ToolCard({
   nested?: boolean;
 }) {
   const hasBlocks = (item.contentBlocks?.length ?? 0) > 0;
+  const hasInput = !!item.input?.trim();
+  const hasOutput = !!item.output?.trim();
+  const hasTerminal = !!item.terminalId;
+  // Only offer expand when we already have detail to show — never invent/persist more.
+  const hasDetail = hasInput || hasOutput || hasBlocks || hasTerminal;
   const looksLikeDiff =
-    !!item.output &&
-    (item.output.includes("\n+") ||
-      item.output.includes("\n-") ||
+    hasOutput &&
+    (item.output!.includes("\n+") ||
+      item.output!.includes("\n-") ||
+      item.output!.includes("--- a/") ||
       item.toolKind === "edit" ||
       item.title.toLowerCase().includes("edit") ||
       item.title.toLowerCase().includes("diff") ||
       item.contentBlocks?.some((b) => (b.type ?? "").toLowerCase() === "diff"));
-  // Always start collapsed unless /expand (all-open) forces open.
-  const fold = detailsFoldProps(foldPolicy, false, `tool-${item.id}`);
+
+  const { open, onToggle } = useDetailsOpen(foldPolicy, false, {
+    collapseWhenAutoEnds: true,
+    defaultOpen: false,
+  });
+
+  const shellStyle: CSSProperties = {
+    borderRadius: nested ? 8 : 12,
+    border: "1px solid var(--gb-border)",
+    background: "var(--gb-tool)",
+    padding: compact ? "8px 12px" : nested ? "8px 12px" : "10px 16px",
+    fontFamily: "ui-monospace, Menlo, monospace",
+    fontSize: compact ? 12 : 13,
+    contentVisibility: nested ? undefined : "auto",
+    containIntrinsicSize: nested ? undefined : "auto 64px",
+  };
+
+  const header = (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        flexWrap: "wrap",
+        userSelect: "none",
+        cursor: hasDetail ? "pointer" : "default",
+      }}
+    >
+      {hasDetail ? (
+        <span style={{ color: "var(--gb-ink-muted)", fontSize: 10, width: 10 }}>
+          {open ? "▾" : "▸"}
+        </span>
+      ) : (
+        <span style={{ width: 10 }} />
+      )}
+      <span
+        style={{
+          display: "inline-block",
+          width: 8,
+          height: 8,
+          borderRadius: 999,
+          background: statusColor(item.status),
+          flexShrink: 0,
+        }}
+      />
+      <span style={{ fontWeight: 600, color: "var(--gb-ink)" }}>{item.title}</span>
+      {item.toolKind ? (
+        <span style={{ fontSize: 11, color: "var(--gb-ink-muted)" }}>{item.toolKind}</span>
+      ) : null}
+      <span style={{ fontSize: 11, color: "var(--gb-ink-muted)" }}>{item.status}</span>
+      {item.terminalId ? (
+        <span style={{ fontSize: 11, color: "var(--gb-warning)" }}>
+          term:{item.terminalId.slice(0, 12)}
+        </span>
+      ) : null}
+      {item.locations && item.locations.length > 0 ? (
+        <span style={{ fontSize: 11, color: "var(--gb-accent)" }}>
+          {item.locations.slice(0, 2).join(", ")}
+          {item.locations.length > 2 ? ` +${item.locations.length - 2}` : ""}
+        </span>
+      ) : null}
+      {showTimestamps && formatTs(item.ts) ? (
+        <span
+          style={{
+            marginLeft: "auto",
+            fontSize: 10,
+            color: "var(--gb-ink-muted)",
+          }}
+        >
+          {formatTs(item.ts)}
+        </span>
+      ) : null}
+    </div>
+  );
+
+  // No captured detail → flat row only (title/status/paths). No empty expand section.
+  if (!hasDetail) {
+    return (
+      <div className={nested ? undefined : "gb-scroll-item"} style={shellStyle}>
+        {header}
+      </div>
+    );
+  }
 
   return (
     <details
       className={nested ? undefined : "gb-scroll-item"}
-      {...fold}
+      open={open}
+      onToggle={onToggle}
+      style={shellStyle}
+    >
+      <summary style={{ listStyle: "none" }}>{header}</summary>
+      {open ? (
+        <>
+          {hasInput ? (
+            <div style={{ marginTop: 10 }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  color: "var(--gb-ink-muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                  marginBottom: 4,
+                }}
+              >
+                Input
+              </div>
+              <pre
+                style={{
+                  margin: 0,
+                  maxHeight: 160,
+                  overflow: "auto",
+                  whiteSpace: "pre-wrap",
+                  fontSize: 11,
+                  color: "var(--gb-ink-muted)",
+                  background: "var(--gb-surface)",
+                  borderRadius: 8,
+                  padding: 8,
+                  border: "1px solid var(--gb-border)",
+                }}
+              >
+                {item.input}
+              </pre>
+            </div>
+          ) : null}
+          {hasBlocks ? <ContentBlocks blocks={item.contentBlocks!} /> : null}
+          {hasTerminal ? <ToolTerminalEmbed terminalId={item.terminalId!} /> : null}
+          {hasOutput ? (
+            <div style={{ marginTop: 10 }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  color: "var(--gb-ink-muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                  marginBottom: 4,
+                }}
+              >
+                {looksLikeDiff ? "Diff / output" : "Output"}
+              </div>
+              {looksLikeDiff ? (
+                <DiffView text={item.output!} />
+              ) : (
+                <pre
+                  style={{
+                    margin: 0,
+                    maxHeight: 220,
+                    overflow: "auto",
+                    whiteSpace: "pre-wrap",
+                    fontSize: 11,
+                    color: "var(--gb-ink-muted)",
+                    background: "var(--gb-surface)",
+                    borderRadius: 8,
+                    padding: 8,
+                    border: "1px solid var(--gb-border)",
+                  }}
+                >
+                  {item.output}
+                </pre>
+              )}
+            </div>
+          ) : null}
+        </>
+      ) : null}
+    </details>
+  );
+}
+
+function FilesChangedPanel({
+  tools,
+  compact,
+}: {
+  tools: ToolScrollItem[];
+  compact: boolean;
+}) {
+  const { paths, changeset } = useMemo(() => collectToolFileChanges(tools), [tools]);
+  const [showDiff, setShowDiff] = useState(false);
+  if (paths.length === 0 && !changeset) return null;
+
+  return (
+    <div
       style={{
-        borderRadius: nested ? 8 : 12,
+        borderRadius: 8,
         border: "1px solid var(--gb-border)",
-        background: "var(--gb-tool)",
-        padding: compact ? "8px 12px" : nested ? "8px 12px" : "10px 16px",
-        fontFamily: "ui-monospace, Menlo, monospace",
-        fontSize: compact ? 12 : 13,
-        contentVisibility: nested ? undefined : "auto",
-        containIntrinsicSize: nested ? undefined : "auto 64px",
+        background: "var(--gb-surface)",
+        padding: compact ? "8px 10px" : "10px 12px",
       }}
     >
-      <summary
+      <div
         style={{
-          cursor: "pointer",
-          listStyle: "none",
           display: "flex",
           alignItems: "center",
+          justifyContent: "space-between",
           gap: 8,
           flexWrap: "wrap",
         }}
       >
         <span
           style={{
-            display: "inline-block",
-            width: 8,
-            height: 8,
-            borderRadius: 999,
-            background: statusColor(item.status),
-            flexShrink: 0,
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.04em",
+            textTransform: "uppercase",
+            color: "var(--gb-ink-muted)",
           }}
-        />
-        <span style={{ fontWeight: 600, color: "var(--gb-ink)" }}>{item.title}</span>
-        {item.toolKind ? (
-          <span style={{ fontSize: 11, color: "var(--gb-ink-muted)" }}>{item.toolKind}</span>
-        ) : null}
-        <span style={{ fontSize: 11, color: "var(--gb-ink-muted)" }}>{item.status}</span>
-        {item.terminalId ? (
-          <span style={{ fontSize: 11, color: "var(--gb-warning)" }}>
-            term:{item.terminalId.slice(0, 12)}
-          </span>
-        ) : null}
-        {item.locations && item.locations.length > 0 ? (
-          <span style={{ fontSize: 11, color: "var(--gb-accent)" }}>
-            {item.locations.slice(0, 2).join(", ")}
-            {item.locations.length > 2 ? ` +${item.locations.length - 2}` : ""}
-          </span>
-        ) : null}
-        {showTimestamps && formatTs(item.ts) ? (
-          <span
+        >
+          Files changed{paths.length ? ` (${paths.length})` : ""}
+        </span>
+        {changeset ? (
+          <button
+            type="button"
+            onClick={() => setShowDiff((v) => !v)}
             style={{
-              marginLeft: "auto",
-              fontSize: 10,
-              color: "var(--gb-ink-muted)",
-            }}
-          >
-            {formatTs(item.ts)}
-          </span>
-        ) : null}
-      </summary>
-      {item.input ? (
-        <div style={{ marginTop: 10 }}>
-          <div
-            style={{
-              fontSize: 10,
-              color: "var(--gb-ink-muted)",
-              textTransform: "uppercase",
-              letterSpacing: "0.04em",
-              marginBottom: 4,
-            }}
-          >
-            Input
-          </div>
-          <pre
-            style={{
-              margin: 0,
-              maxHeight: 160,
-              overflow: "auto",
-              whiteSpace: "pre-wrap",
-              fontSize: 11,
-              color: "var(--gb-ink-muted)",
-              background: "var(--gb-surface)",
-              borderRadius: 8,
-              padding: 8,
+              borderRadius: 6,
               border: "1px solid var(--gb-border)",
+              background: showDiff ? "rgba(124,156,255,0.15)" : "var(--gb-surface-overlay)",
+              color: showDiff ? "var(--gb-accent)" : "var(--gb-ink)",
+              padding: "3px 8px",
+              fontSize: 11,
+              fontWeight: 600,
+              cursor: "pointer",
             }}
           >
-            {item.input}
-          </pre>
-        </div>
-      ) : null}
-      {hasBlocks ? <ContentBlocks blocks={item.contentBlocks!} /> : null}
-      {item.terminalId ? <ToolTerminalEmbed terminalId={item.terminalId} /> : null}
-      {item.output ? (
-        <div style={{ marginTop: 10 }}>
-          <div
-            style={{
-              fontSize: 10,
-              color: "var(--gb-ink-muted)",
-              textTransform: "uppercase",
-              letterSpacing: "0.04em",
-              marginBottom: 4,
-            }}
-          >
-            {looksLikeDiff ? "Diff / output" : "Output"}
-          </div>
-          {looksLikeDiff ? (
-            <DiffView text={item.output} />
-          ) : (
-            <pre
+            {showDiff ? "Hide changeset" : "View changeset"}
+          </button>
+        ) : null}
+      </div>
+      {paths.length > 0 ? (
+        <ul
+          style={{
+            listStyle: "none",
+            margin: "8px 0 0",
+            padding: 0,
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+            maxHeight: 160,
+            overflow: "auto",
+          }}
+        >
+          {paths.map((p) => (
+            <li
+              key={p}
+              title={p}
               style={{
-                margin: 0,
-                maxHeight: 220,
-                overflow: "auto",
-                whiteSpace: "pre-wrap",
-                fontSize: 11,
-                color: "var(--gb-ink-muted)",
-                background: "var(--gb-surface)",
-                borderRadius: 8,
-                padding: 8,
-                border: "1px solid var(--gb-border)",
+                fontSize: 12,
+                fontFamily: "ui-monospace, Menlo, monospace",
+                color: "var(--gb-accent)",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
               }}
             >
-              {item.output}
-            </pre>
-          )}
+              {p}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--gb-ink-muted)" }}>
+          Diff available (paths not reported by tools).
+        </p>
+      )}
+      {showDiff && changeset ? (
+        <div style={{ marginTop: 10 }}>
+          <DiffView text={changeset} />
         </div>
       ) : null}
-    </details>
+    </div>
   );
 }
 
-/** Multiple consecutive tools as one collapsible group (collapsed by default). */
-function ToolGroupView({
+/**
+ * Combined thinking + tools block.
+ * Opens while the turn is processing; collapses once results land.
+ * User can re-open anytime to inspect details.
+ */
+function ActivityGroupView({
+  thoughts,
   tools,
+  itemIndices,
   foldPolicy,
   compact,
   showTimestamps,
 }: {
+  thoughts: ThoughtScrollItem[];
   tools: ToolScrollItem[];
+  itemIndices: number[];
   foldPolicy: FoldPolicy;
   compact: boolean;
   showTimestamps: boolean;
 }) {
-  const fold = detailsFoldProps(
-    foldPolicy,
-    false,
-    `tool-group-${tools.map((t) => t.id).join("|")}`,
-  );
-  const label = groupStatusLabel(tools);
+  const items = useAppStore((s) => s.items);
+  const busy = useAppStore((s) => s.busy);
+  const live = isActivityLive(tools, itemIndices, items, busy);
+  // One shell per user turn: open while working, collapse when done (expand for full story).
+  const { open, onToggle } = useDetailsOpen(foldPolicy, live, {
+    collapseWhenAutoEnds: true,
+  });
+  const fileCount = useMemo(() => collectToolFileChanges(tools).paths.length, [tools]);
+
+  const label = activityStatusLabel(thoughts, tools, live);
   const toneColor =
-    label === "running"
+    label === "thinking" || label === "working"
       ? "var(--gb-warning)"
       : label === "failed"
         ? "var(--gb-danger)"
         : "var(--gb-success)";
-  const titlePreview = tools
-    .slice(0, 4)
+
+  // Single "Thinking" label (thoughts already merged into one card).
+  const parts: string[] = [];
+  if (thoughts.length) parts.push("Thinking");
+  if (tools.length) parts.push(tools.length === 1 ? "1 tool" : `${tools.length} tools`);
+  if (!live && fileCount > 0) parts.push(`${fileCount} file${fileCount === 1 ? "" : "s"}`);
+  const headline = parts.join(" · ") || "Activity";
+
+  const toolPreview = tools
+    .slice(0, 3)
     .map((t) => t.title)
     .join(" · ");
-  const extra = tools.length > 4 ? ` +${tools.length - 4}` : "";
+  // Full merged explanation (one thought after mergeThoughts).
+  const fullThought = thoughts.length
+    ? asDisplayText(thoughts[0]!.text).replace(/\s+/g, " ").trim()
+    : "";
+  const thoughtPreview = live
+    ? fullThought.slice(-140) // latest stream while working
+    : fullThought.slice(0, 180); // start of full explanation when done
 
   return (
     <details
       className="gb-scroll-item"
-      {...fold}
+      open={open}
+      onToggle={onToggle}
       style={{
         borderRadius: 12,
         border: "1px solid var(--gb-border)",
         background: "var(--gb-surface-raised)",
         padding: compact ? "8px 12px" : "10px 16px",
         contentVisibility: "auto",
-        containIntrinsicSize: "auto 56px",
+        containIntrinsicSize: "auto 52px",
       }}
     >
       <summary
@@ -614,8 +955,12 @@ function ToolGroupView({
           alignItems: "center",
           gap: 8,
           flexWrap: "wrap",
+          userSelect: "none",
         }}
       >
+        <span style={{ color: "var(--gb-ink-muted)", fontSize: 10, width: 10 }}>
+          {open ? "▾" : "▸"}
+        </span>
         <span
           style={{
             width: 8,
@@ -623,6 +968,7 @@ function ToolGroupView({
             borderRadius: 999,
             background: toneColor,
             flexShrink: 0,
+            boxShadow: live ? "0 0 0 3px rgba(240, 180, 41, 0.28)" : undefined,
           }}
         />
         <span
@@ -634,50 +980,162 @@ function ToolGroupView({
             color: "var(--gb-ink-muted)",
           }}
         >
-          {tools.length} tools
+          {headline}
         </span>
         <span style={{ fontSize: 11, color: toneColor, fontWeight: 600 }}>{label}</span>
-        <span
-          style={{
-            fontSize: 12,
-            color: "var(--gb-ink)",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            minWidth: 0,
-            flex: 1,
-            fontFamily: "ui-monospace, Menlo, monospace",
-          }}
-          title={tools.map((t) => t.title).join("\n")}
-        >
-          {titlePreview}
-          {extra}
-        </span>
-        {showTimestamps && formatTs(tools[0]?.ts) ? (
-          <span style={{ fontSize: 10, color: "var(--gb-ink-muted)" }}>
-            {formatTs(tools[0]?.ts)}
+        {!open ? (
+          <span
+            style={{
+              fontSize: 12,
+              color: "var(--gb-ink-muted)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              minWidth: 0,
+              flex: 1,
+              fontFamily: "ui-monospace, Menlo, monospace",
+            }}
+            title={[thoughtPreview, toolPreview].filter(Boolean).join("\n")}
+          >
+            {toolPreview || thoughtPreview}
+            {tools.length > 3 ? ` +${tools.length - 3}` : ""}
+          </span>
+        ) : null}
+        {showTimestamps && formatTs(thoughts[0]?.ts ?? tools[0]?.ts) ? (
+          <span style={{ fontSize: 10, color: "var(--gb-ink-muted)", marginLeft: "auto" }}>
+            {formatTs(thoughts[0]?.ts ?? tools[0]?.ts)}
           </span>
         ) : null}
       </summary>
-      <div
+
+      {open ? (
+        <div
+          style={{
+            marginTop: 10,
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+          }}
+        >
+          {/* One merged explanation for the whole turn */}
+          {thoughts.map((th) => (
+            <ThoughtCard
+              key={th.id}
+              item={th}
+              foldPolicy={foldPolicy}
+              autoOpen={live}
+              keepOpenWhenDone
+              live={live}
+              compact={compact}
+              showTimestamps={showTimestamps}
+            />
+          ))}
+
+          {tools.length > 0 ? (
+            <>
+              {!live ? <FilesChangedPanel tools={tools} compact={compact} /> : null}
+              {tools.map((t) => (
+                <ToolCard
+                  key={t.id}
+                  item={t}
+                  foldPolicy={foldPolicy}
+                  compact={compact}
+                  showTimestamps={showTimestamps}
+                  nested
+                />
+              ))}
+            </>
+          ) : null}
+        </div>
+      ) : null}
+    </details>
+  );
+}
+
+function ThoughtCard({
+  item,
+  foldPolicy,
+  autoOpen,
+  keepOpenWhenDone = false,
+  live = false,
+  compact,
+  showTimestamps,
+}: {
+  item: ThoughtScrollItem;
+  foldPolicy: FoldPolicy;
+  autoOpen: boolean;
+  /** After finish, leave full explanation open when the parent group is expanded. */
+  keepOpenWhenDone?: boolean;
+  live?: boolean;
+  compact: boolean;
+  showTimestamps: boolean;
+}) {
+  const { open, onToggle } = useDetailsOpen(foldPolicy, autoOpen, {
+    collapseWhenAutoEnds: !keepOpenWhenDone,
+    defaultOpen: keepOpenWhenDone,
+  });
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const text = asDisplayText(item.text);
+
+  useEffect(() => {
+    if (!live || !open) return;
+    const el = bodyRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [text, live, open]);
+
+  return (
+    <details
+      open={open}
+      onToggle={onToggle}
+      style={{
+        borderRadius: 8,
+        border: "1px solid var(--gb-border)",
+        background: "var(--gb-thought)",
+        padding: compact ? "6px 10px" : "8px 12px",
+        fontSize: compact ? 12 : 13,
+        color: "var(--gb-ink-muted)",
+      }}
+    >
+      <summary
         style={{
-          marginTop: 10,
+          cursor: "pointer",
+          listStyle: "none",
+          fontSize: 11,
+          fontWeight: 600,
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
           display: "flex",
-          flexDirection: "column",
-          gap: 6,
+          justifyContent: "space-between",
+          gap: 8,
+          userSelect: "none",
         }}
       >
-        {tools.map((t) => (
-          <ToolCard
-            key={t.id}
-            item={t}
-            foldPolicy={foldPolicy}
-            compact={compact}
-            showTimestamps={showTimestamps}
-            nested
-          />
-        ))}
-      </div>
+        <span>
+          <span style={{ marginRight: 6 }}>{open ? "▾" : "▸"}</span>
+          {live ? "Thinking…" : "Explanation"}
+        </span>
+        {showTimestamps && formatTs(item.ts) ? (
+          <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>
+            {formatTs(item.ts)}
+          </span>
+        ) : null}
+      </summary>
+      {open ? (
+        <div
+          ref={bodyRef}
+          style={{
+            marginTop: 8,
+            whiteSpace: "pre-wrap",
+            fontFamily: "ui-monospace, Menlo, monospace",
+            fontSize: 12,
+            opacity: 0.9,
+            maxHeight: live ? 220 : 520,
+            overflow: "auto",
+          }}
+        >
+          {text}
+        </div>
+      ) : null}
     </details>
   );
 }
@@ -708,7 +1166,7 @@ function AgentMessageView({
       }}
     >
       <LabelRow
-        label={rawMarkdown ? "Grok (raw)" : "Grok"}
+        label={rawMarkdown ? "Agent (raw)" : "Agent"}
         color="var(--gb-accent)"
         ts={item.ts}
         showTs={showTimestamps}
@@ -770,55 +1228,20 @@ function ItemView({ item }: { item: ScrollItem }) {
           showTimestamps={showTimestamps}
         />
       );
-    case "thought": {
-      const fold = detailsFoldProps(foldPolicy, false, `thought-${item.id}`);
+    case "thought":
       return (
-        <details
-          className="gb-scroll-item"
-          {...fold}
-          style={{
-            borderRadius: 12,
-            border: "1px solid var(--gb-border)",
-            background: "var(--gb-thought)",
-            padding: compact ? "6px 12px" : "8px 16px",
-            fontSize: compact ? 12 : 13,
-            color: "var(--gb-ink-muted)",
-            contentVisibility: "auto",
-            containIntrinsicSize: "auto 48px",
-          }}
-        >
-          <summary
-            style={{
-              cursor: "pointer",
-              fontSize: 11,
-              fontWeight: 600,
-              letterSpacing: "0.04em",
-              textTransform: "uppercase",
-              display: "flex",
-              justifyContent: "space-between",
-            }}
-          >
-            <span>Thinking</span>
-            {showTimestamps && formatTs(item.ts) ? (
-              <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>
-                {formatTs(item.ts)}
-              </span>
-            ) : null}
-          </summary>
-          <div
-            style={{
-              marginTop: 8,
-              whiteSpace: "pre-wrap",
-              fontFamily: "ui-monospace, Menlo, monospace",
-              fontSize: 12,
-              opacity: 0.9,
-            }}
-          >
-            {asDisplayText(item.text)}
-          </div>
-        </details>
+        <div className="gb-scroll-item">
+          <ThoughtCard
+            item={item}
+            foldPolicy={foldPolicy}
+            autoOpen={false}
+            keepOpenWhenDone
+            live={false}
+            compact={compact}
+            showTimestamps={showTimestamps}
+          />
+        </div>
       );
-    }
     case "tool":
       return (
         <ToolCard
@@ -912,6 +1335,8 @@ function ItemView({ item }: { item: ScrollItem }) {
 
 export function Scrollback() {
   const items = useAppStore((s) => s.items);
+  const sessionId = useAppStore((s) => s.session?.sessionId);
+  const historyPager = useAppStore((s) => s.historyPager);
   const findOpen = useAppStore((s) => s.findOpen);
   const findQuery = useAppStore((s) => s.findQuery);
   const findIndex = useAppStore((s) => s.findIndex);
@@ -922,6 +1347,11 @@ export function Scrollback() {
   const showTimestamps = useAppStore((s) => s.showTimestamps);
   const parentRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
+  /** Preserve viewport when prepending older history. */
+  const pendingScrollRestore = useRef<{ height: number; top: number } | null>(
+    null,
+  );
+  const loadOlderInFlight = useRef(false);
 
   const displayRows = useMemo(() => buildDisplayRows(items), [items]);
 
@@ -972,14 +1402,12 @@ export function Scrollback() {
     estimateSize: (i) => {
       const row = displayRows[i];
       if (!row) return 80;
-      if (row.kind === "tools") {
-        // Collapsed group height; expands when opened.
+      if (row.kind === "activity") {
+        // Collapsed bar by default; grows when open / live.
         return compact ? 52 : 60;
       }
       const it = row.item;
       if (it.kind === "system") return compact ? 40 : 48;
-      if (it.kind === "thought") return compact ? 48 : 56;
-      if (it.kind === "tool") return compact ? 52 : 60;
       if (it.kind === "plan") return compact ? 84 : 100;
       if (it.kind === "user") return compact ? 60 : 72;
       const len = it.kind === "agent" ? it.text.length : 0;
@@ -989,10 +1417,58 @@ export function Scrollback() {
     getItemKey: (i) => {
       const row = displayRows[i];
       if (!row) return i;
-      if (row.kind === "tools") return `tools:${row.tools.map((t) => t.id).join(",")}`;
+      if (row.kind === "activity") {
+        return `activity:${row.itemIndices.join(",")}`;
+      }
       return row.item.id;
     },
   });
+
+  const loadOlderHistory = useCallback(async () => {
+    const pager = useAppStore.getState().historyPager;
+    const sid = useAppStore.getState().session?.sessionId;
+    if (!sid || !pager || pager.sessionId !== sid) return;
+    if (!pager.hasMore || pager.loading || loadOlderInFlight.current) return;
+
+    const el = parentRef.current;
+    if (!el) return;
+
+    loadOlderInFlight.current = true;
+    stickToBottom.current = false;
+    pendingScrollRestore.current = {
+      height: el.scrollHeight,
+      top: el.scrollTop,
+    };
+    useAppStore.getState().setHistoryPager({ ...pager, loading: true });
+
+    try {
+      const page = await getSessionHistory(
+        sid,
+        HISTORY_PAGE_SIZE,
+        pager.loadedFromEnd,
+      );
+      if (page.items.length === 0) {
+        useAppStore.getState().setHistoryPager({
+          ...pager,
+          hasMore: false,
+          loading: false,
+          loadedFromEnd: page.loadedFromEnd || pager.loadedFromEnd,
+          total: page.total || pager.total,
+        });
+        pendingScrollRestore.current = null;
+        return;
+      }
+      hydrateHistoryPrepend(sid, page);
+    } catch {
+      const cur = useAppStore.getState().historyPager;
+      if (cur) {
+        useAppStore.getState().setHistoryPager({ ...cur, loading: false });
+      }
+      pendingScrollRestore.current = null;
+    } finally {
+      loadOlderInFlight.current = false;
+    }
+  }, []);
 
   useEffect(() => {
     const el = parentRef.current;
@@ -1000,14 +1476,31 @@ export function Scrollback() {
     const onScroll = () => {
       const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
       stickToBottom.current = dist < 120;
+      // Near top → pull older disk history (if any).
+      if (el.scrollTop < 96) {
+        void loadOlderHistory();
+      }
     };
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => el.removeEventListener("scroll", onScroll);
-  }, []);
+  }, [loadOlderHistory]);
+
+  // After prepending older rows, keep the same messages under the viewport.
+  useEffect(() => {
+    const restore = pendingScrollRestore.current;
+    const el = parentRef.current;
+    if (!restore || !el) return;
+    pendingScrollRestore.current = null;
+    const delta = el.scrollHeight - restore.height;
+    if (delta > 0) {
+      el.scrollTop = restore.top + delta;
+    }
+  }, [items.length, displayRows.length]);
 
   useEffect(() => {
     if (!stickToBottom.current || displayRows.length === 0) return;
     if (scrollToIndex != null) return;
+    if (pendingScrollRestore.current) return;
     virtualizer.scrollToIndex(displayRows.length - 1, { align: "end" });
   }, [
     displayRows.length,
@@ -1059,6 +1552,11 @@ export function Scrollback() {
   const vItems = virtualizer.getVirtualItems();
   const gap = compact ? 8 : 12;
 
+  const showHistoryHint =
+    !!historyPager &&
+    historyPager.sessionId === sessionId &&
+    (historyPager.hasMore || historyPager.loading);
+
   return (
     <div
       ref={parentRef}
@@ -1070,6 +1568,65 @@ export function Scrollback() {
         minHeight: 0,
       }}
     >
+      {showHistoryHint ? (
+        <div
+          style={{
+            position: "sticky",
+            top: 0,
+            zIndex: 2,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            marginBottom: compact ? 8 : 10,
+            padding: "6px 10px",
+            borderRadius: 8,
+            border: "1px solid var(--gb-border)",
+            background: "color-mix(in srgb, var(--gb-surface-raised) 92%, transparent)",
+            fontSize: 11,
+            color: "var(--gb-ink-muted)",
+            backdropFilter: "blur(6px)",
+          }}
+        >
+          {historyPager?.loading
+            ? "Loading older messages…"
+            : historyPager?.hasMore
+              ? `Scroll up for older history · ${historyPager.loadedFromEnd}/${historyPager.total}`
+              : null}
+          {historyPager?.hasMore && !historyPager.loading ? (
+            <button
+              type="button"
+              onClick={() => void loadOlderHistory()}
+              style={{
+                border: "1px solid var(--gb-border)",
+                background: "var(--gb-surface)",
+                color: "var(--gb-ink)",
+                borderRadius: 6,
+                padding: "2px 8px",
+                fontSize: 11,
+                cursor: "pointer",
+              }}
+            >
+              Load older
+            </button>
+          ) : null}
+        </div>
+      ) : historyPager &&
+        historyPager.sessionId === sessionId &&
+        !historyPager.hasMore &&
+        historyPager.total > HISTORY_INITIAL_LIMIT ? (
+        <div
+          style={{
+            textAlign: "center",
+            fontSize: 11,
+            color: "var(--gb-ink-muted)",
+            marginBottom: compact ? 8 : 10,
+            padding: "4px 0",
+          }}
+        >
+          Beginning of session
+        </div>
+      ) : null}
       <div
         style={{
           height: virtualizer.getTotalSize(),
@@ -1086,8 +1643,8 @@ export function Scrollback() {
           const jumped = jumpRow === v.index;
           const active = activeMatchRow === v.index;
           const key =
-            row.kind === "tools"
-              ? `tools:${row.tools.map((t) => t.id).join(",")}`
+            row.kind === "activity"
+              ? `activity:${row.itemIndices.join(",")}`
               : row.item.id;
 
           return (
@@ -1113,9 +1670,11 @@ export function Scrollback() {
                 borderRadius: 12,
               }}
             >
-              {row.kind === "tools" ? (
-                <ToolGroupView
+              {row.kind === "activity" ? (
+                <ActivityGroupView
+                  thoughts={row.thoughts}
                   tools={row.tools}
+                  itemIndices={row.itemIndices}
                   foldPolicy={foldPolicy}
                   compact={compact}
                   showTimestamps={showTimestamps}

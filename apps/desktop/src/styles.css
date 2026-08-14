@@ -188,6 +188,23 @@ body {
   box-shadow: 0 0 0 4px rgba(124, 156, 255, 0.15);
 }
 
+/* Collapsible tool / activity cards — custom chevrons, reliable clicks */
+.gb-scrollback details > summary {
+  list-style: none;
+}
+.gb-scrollback details > summary::-webkit-details-marker {
+  display: none;
+}
+.gb-scrollback details > summary::marker {
+  content: "";
+}
+
+@keyframes gb-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* ── Status bar (responsive header) ─────────────────────────── */
 .gb-statusbar {
   display: flex;

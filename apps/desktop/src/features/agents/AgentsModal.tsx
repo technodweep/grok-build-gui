@@ -14,6 +14,21 @@ import type { AgentDef, AgentsCatalog, PersonaDef, SubagentInfo } from "../../sh
 
 type Tab = "agents" | "personas" | "live";
 
+function isSubActive(s: SubagentInfo): boolean {
+  const st = (s.status ?? "").toLowerCase();
+  if (s.live) return true;
+  if (!st) return true; // unknown → treat as possibly active
+  if (st.includes("complete") || st.includes("done") || st.includes("success")) return false;
+  if (st.includes("fail") || st.includes("error") || st.includes("cancel")) return false;
+  return (
+    st.includes("run") ||
+    st.includes("work") ||
+    st.includes("active") ||
+    st.includes("progress") ||
+    st.includes("pending")
+  );
+}
+
 const DEFAULT_AGENT_BODY = `---
 name: my-agent
 description: Custom agent
@@ -56,6 +71,8 @@ export function AgentsModal() {
   const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
+  /** Live tab: hide finished children by default (session history can be long). */
+  const [showCompletedSubs, setShowCompletedSubs] = useState(false);
 
   const [selectedAgent, setSelectedAgent] = useState<AgentDef | null>(null);
   const [selectedPersona, setSelectedPersona] = useState<PersonaDef | null>(null);
@@ -111,6 +128,24 @@ export function AgentsModal() {
         a.source.toLowerCase().includes(q),
     );
   }, [catalog, q]);
+
+  const activeSubCount = useMemo(
+    () => subagents.filter(isSubActive).length,
+    [subagents],
+  );
+
+  const visibleSubs = useMemo(() => {
+    const list = showCompletedSubs
+      ? subagents
+      : subagents.filter((s) => isSubActive(s));
+    // Keep active first even after merge.
+    return [...list].sort((a, b) => {
+      const ar = isSubActive(a) ? 0 : 1;
+      const br = isSubActive(b) ? 0 : 1;
+      if (ar !== br) return ar - br;
+      return b.id.localeCompare(a.id);
+    });
+  }, [subagents, showCompletedSubs]);
 
   const personas = useMemo(() => {
     const list = catalog?.personas ?? [];
@@ -257,7 +292,7 @@ export function AgentsModal() {
           <div>
             <h2 style={{ margin: 0, fontSize: 18 }}>Agents & personas</h2>
             <p style={{ margin: "4px 0 0", fontSize: 12, color: "var(--gb-ink-muted)" }}>
-              Session agent types · behavioral personas · live subagents
+              Session agent types · personas · subagents spawned this session
             </p>
           </div>
           <div style={{ display: "flex", gap: 6 }}>
@@ -284,7 +319,12 @@ export function AgentsModal() {
             [
               ["agents", `Agents (${catalog?.agents.length ?? 0})`],
               ["personas", `Personas (${catalog?.personas.length ?? 0})`],
-              ["live", `Live (${subagents.length})`],
+              [
+                "live",
+                activeSubCount > 0
+                  ? `Subagents (${activeSubCount} active · ${subagents.length})`
+                  : `Subagents (${subagents.length})`,
+              ],
             ] as const
           ).map(([id, label]) => (
             <button
@@ -319,7 +359,41 @@ export function AgentsModal() {
             placeholder="Filter…"
             style={search}
           />
-        ) : null}
+        ) : (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+              marginTop: 10,
+              flexWrap: "wrap",
+            }}
+          >
+            <p style={{ ...hint, margin: 0, maxWidth: 420 }}>
+              Real children the agent spawned this session (saved under the session folder). Not a
+              bug if many finished tasks appear — toggle completed to review history.
+            </p>
+            <label
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                fontSize: 12,
+                color: "var(--gb-ink-muted)",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={showCompletedSubs}
+                onChange={(e) => setShowCompletedSubs(e.target.checked)}
+              />
+              Show completed ({Math.max(0, subagents.length - activeSubCount)})
+            </label>
+          </div>
+        )}
 
         <div
           style={{
@@ -335,62 +409,95 @@ export function AgentsModal() {
             <div style={{ flex: 1, overflowY: "auto" }}>
               {subagents.length === 0 ? (
                 <p style={hint}>
-                  No subagents for this session. Spawned children show status, isolation, and
-                  open/stop actions here and in the chat strip.
+                  No subagents for this session. When the agent spawns children they appear here
+                  (and in the chat strip).
+                </p>
+              ) : visibleSubs.length === 0 ? (
+                <p style={hint}>
+                  No active subagents. {subagents.length} completed — enable{" "}
+                  <strong>Show completed</strong> to list them.
                 </p>
               ) : (
                 <ul style={list}>
-                  {subagents.map((s) => {
+                  {visibleSubs.map((s) => {
                     const onRoster =
                       !!s.childSessionId &&
                       liveSessions.some((x) => x.sessionId === s.childSessionId);
+                    const active = isSubActive(s);
                     const iso =
                       s.isolation ||
                       (s.worktreePath ? "worktree" : null);
+                    const displayName =
+                      s.title || s.name || s.agentType || s.id.slice(0, 8);
                     return (
                       <li key={s.id} style={listItem}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 600, fontSize: 13 }}>
-                            {s.name || s.agentType || s.id.slice(0, 8)}
+                            {displayName}
                             {s.agentType ? (
-                              <span style={{ fontWeight: 400, color: "var(--gb-ink-muted)", marginLeft: 6 }}>
+                              <span
+                                style={{
+                                  fontWeight: 400,
+                                  color: "var(--gb-ink-muted)",
+                                  marginLeft: 6,
+                                }}
+                              >
                                 {s.agentType}
                               </span>
                             ) : null}
                           </div>
                           <div style={meta}>
-                            {s.status || "unknown"}
+                            <span
+                              style={{
+                                color: active
+                                  ? "var(--gb-warning)"
+                                  : (s.status ?? "").toLowerCase().includes("fail")
+                                    ? "var(--gb-danger)"
+                                    : "var(--gb-success)",
+                              }}
+                            >
+                              {s.status || (active ? "running" : "completed")}
+                            </span>
                             {s.persona ? ` · persona ${s.persona}` : ""}
                             {iso ? ` · isolation ${iso}` : ""}
                             {s.modelId ? ` · ${s.modelId}` : ""}
                             {s.live ? " · live stream" : ""}
                             {onRoster ? " · on roster" : ""}
+                            {" · "}
+                            <span title={s.id} style={{ fontFamily: "ui-monospace, Menlo, monospace" }}>
+                              {s.id.slice(0, 8)}…
+                            </span>
                           </div>
                           {s.worktreePath ? (
                             <div style={{ ...meta, fontSize: 10 }} title={s.worktreePath}>
                               worktree: {s.worktreePath}
                             </div>
                           ) : null}
-                          {s.title ? <div style={meta}>{s.title}</div> : null}
                         </div>
                         <button
                           type="button"
                           style={ghost}
                           disabled={!s.childSessionId}
                           onClick={() => void openChild(s)}
+                          title="Open child session if still on the agent roster"
                         >
                           Open
                         </button>
                         <button
                           type="button"
                           style={dangerBtn}
-                          disabled={!s.childSessionId}
+                          disabled={!s.childSessionId || !active}
                           onClick={() =>
                             void cancelLiveSession(s.childSessionId!)
                               .then(() => setMsg(`Cancelled ${s.childSessionId!.slice(0, 8)}…`))
                               .catch((e) =>
                                 setError(e instanceof Error ? e.message : String(e)),
                               )
+                          }
+                          title={
+                            active
+                              ? "Cancel running child"
+                              : "Already finished — nothing to stop"
                           }
                         >
                           Stop

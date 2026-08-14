@@ -6,7 +6,7 @@ import type {
   EnvironmentInfo,
   GrokConfigOverview,
   GuiSettings,
-  HistoryItem,
+  HistoryPage,
   LiveSession,
   SessionModelsState,
   SessionSignals,
@@ -218,9 +218,10 @@ export function renameDiskSession(sessionId: string, title: string) {
   });
 }
 
-export function getSessionHistory(sessionId: string, limit = 200) {
-  return invoke<HistoryItem[]>("get_session_history", {
-    args: { sessionId, limit },
+/** Load a page of session history from disk. `before` = already-loaded newest count. */
+export function getSessionHistory(sessionId: string, limit = 150, before = 0) {
+  return invoke<HistoryPage>("get_session_history", {
+    args: { sessionId, limit, before },
   });
 }
 

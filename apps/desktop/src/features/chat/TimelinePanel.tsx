@@ -2,6 +2,18 @@ import { type CSSProperties } from "react";
 import { asDisplayText } from "../../shared/text";
 import { useAppStore } from "../../shared/store";
 
+function formatTurnTs(ts: number): string {
+  const d = new Date(ts);
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    ...(sameYear ? {} : { year: "numeric" }),
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function TimelinePanel() {
   const open = useAppStore((s) => s.timelineOpen);
   const setOpen = useAppStore((s) => s.setTimelineOpen);
@@ -100,12 +112,7 @@ export function TimelinePanel() {
                   }}
                 >
                   #{n + 1}
-                  {t.it.ts
-                    ? ` · ${new Date(t.it.ts).toLocaleTimeString(undefined, {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}`
-                    : ""}
+                  {t.it.ts ? ` · ${formatTurnTs(t.it.ts)}` : ""}
                 </div>
                 <div
                   style={{

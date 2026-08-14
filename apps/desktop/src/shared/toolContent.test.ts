@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { blocksToDiffText, toolOutputFromUpdate } from "./toolContent";
+import {
+  blocksToDiffText,
+  collectToolFileChanges,
+  toolOutputFromUpdate,
+} from "./toolContent";
 
 describe("toolContent", () => {
   it("builds a simple diff", () => {
@@ -26,5 +30,22 @@ describe("toolContent", () => {
     });
     expect(r.output).toContain("hello");
     expect(r.contentBlocks?.length).toBe(2);
+  });
+
+  it("collects paths and changeset from tools", () => {
+    const { paths, changeset } = collectToolFileChanges([
+      {
+        title: "edit",
+        locations: ["src/a.ts"],
+        input: JSON.stringify({ path: "src/b.ts" }),
+        contentBlocks: [
+          { type: "diff", path: "src/a.ts", oldText: "x\n", newText: "y\n" },
+        ],
+      },
+    ]);
+    expect(paths).toContain("src/a.ts");
+    expect(paths).toContain("src/b.ts");
+    expect(changeset).toContain("--- a/src/a.ts");
+    expect(changeset).toContain("### edit");
   });
 });

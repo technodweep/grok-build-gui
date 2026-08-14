@@ -41,7 +41,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use session::{
     delete_session, list_sessions, list_subagents, load_history, load_plan_md, load_plan_mode,
-    load_signals, rename_session, save_plan_md, DiskSession, HistoryItem, PlanModeState,
+    load_signals, rename_session, save_plan_md, DiskSession, HistoryPage, PlanModeState,
     SessionSignals, SubagentInfo,
 };
 use tauri::Manager;
@@ -103,6 +103,9 @@ struct HistoryArgs {
     session_id: String,
     #[serde(default)]
     limit: Option<usize>,
+    /// How many newest items the client already has (skip from end).
+    #[serde(default)]
+    before: Option<usize>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -403,8 +406,12 @@ fn rename_disk_session(args: RenameArgs) -> AppResult<()> {
 }
 
 #[tauri::command]
-fn get_session_history(args: HistoryArgs) -> AppResult<Vec<HistoryItem>> {
-    load_history(&args.session_id, args.limit.unwrap_or(200))
+fn get_session_history(args: HistoryArgs) -> AppResult<HistoryPage> {
+    load_history(
+        &args.session_id,
+        args.limit.unwrap_or(150),
+        args.before.unwrap_or(0),
+    )
 }
 
 #[tauri::command]

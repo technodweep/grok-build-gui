@@ -34,6 +34,7 @@ import { MemoryMediaModal } from "./features/memory/MemoryMediaModal";
 import { AccountSafetyModal } from "./features/account/AccountSafetyModal";
 import { HelpDocsPanel } from "./features/help/HelpDocsPanel";
 import { ProjectConfigModal } from "./features/project/ProjectConfigModal";
+import { SessionBootOverlay } from "./features/sessions/SessionBootOverlay";
 import { Welcome } from "./features/sessions/Welcome";
 import { extractMediaPaths, mediaKind } from "./shared/mediaPaths";
 import { extractTerminalId } from "./shared/terminalId";
@@ -66,13 +67,30 @@ import type {
 function looksLikeSubagentTool(update: NonNullable<SessionUpdateParams["update"]>): boolean {
   const title = String(update.title ?? "").toLowerCase();
   const kind = String(update.kind ?? "").toLowerCase();
-  const blob = `${title} ${kind}`;
+  const metaName = String(
+    (update as { _meta?: { "x.ai/tool"?: { name?: string } } })._meta?.["x.ai/tool"]?.name ??
+      "",
+  ).toLowerCase();
+  const raw = update.rawInput as Record<string, unknown> | undefined;
+  const hasAgentType =
+    !!raw &&
+    (typeof raw.subagent_type === "string" ||
+      typeof raw.subagentType === "string" ||
+      typeof raw.agent_type === "string" ||
+      typeof raw.agentType === "string");
+  const hasSpawnShape =
+    hasAgentType &&
+    !!raw &&
+    (typeof raw.prompt === "string" || typeof raw.description === "string");
+  const blob = `${title} ${kind} ${metaName}`;
+  // Prefer explicit spawn tool names — avoid treating normal tools as subagents.
   return (
-    blob.includes("subagent") ||
+    metaName.includes("spawn_subagent") ||
     blob.includes("spawn_subagent") ||
     blob.includes("spawn subagent") ||
-    kind === "think" && title.includes("agent") ||
-    /\bagent\b/.test(title) && (blob.includes("explore") || blob.includes("plan") || blob.includes("spawn"))
+    title === "spawn_subagent" ||
+    title.includes("spawn_subagent") ||
+    hasSpawnShape
   );
 }
 
@@ -736,6 +754,7 @@ export default function App() {
       style={{ height: "100%", minHeight: "100vh", background: "#0c0e12", color: "#e8ecf4" }}
     >
       <StatusBar />
+      <SessionBootOverlay />
       {!env ? (
         <div
           className="flex flex-1 items-center justify-center"

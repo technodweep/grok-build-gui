@@ -253,6 +253,28 @@ export interface HistoryItem {
   status?: string | null;
   toolCallId?: string | null;
   toolKind?: string | null;
+  /** Original event time (epoch ms) from disk when present — never invented. */
+  ts?: number | null;
+}
+
+/** Paginated session history from disk (`updates.jsonl`). */
+export interface HistoryPage {
+  items: HistoryItem[];
+  total: number;
+  hasMore: boolean;
+  /** Pass as next `before` to load older messages. */
+  loadedFromEnd: number;
+  /** Absolute index of items[0] in the full history (0 = oldest). */
+  startIndex: number;
+}
+
+/** Tracks how much disk history is loaded into the scrollback. */
+export interface HistoryPager {
+  sessionId: string;
+  total: number;
+  loadedFromEnd: number;
+  hasMore: boolean;
+  loading: boolean;
 }
 
 export interface GuiSettings {
@@ -433,6 +455,15 @@ export interface PlanEntry {
   status: string;
   priority?: string;
 }
+
+/** Full-screen boot progress while opening / resuming a session. */
+export type SessionBootState = {
+  kind: "resume" | "new" | "reconnect" | "switch";
+  title: string;
+  detail: string;
+  /** Optional secondary line (session id, path). */
+  meta?: string;
+};
 
 /** Unix ms when the item was first created (optional; may be missing on hydrate). */
 export type ScrollItem =

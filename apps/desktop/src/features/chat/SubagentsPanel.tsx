@@ -5,6 +5,10 @@ import {
   listSessionSubagents,
   switchSession,
 } from "../../shared/api";
+import {
+  HISTORY_INITIAL_LIMIT,
+  hydrateHistoryReplace,
+} from "../../shared/historyHydrate";
 import { useAppStore } from "../../shared/store";
 import type { SubagentInfo } from "../../shared/types";
 
@@ -52,7 +56,6 @@ export function SubagentsPanel() {
   const setError = useAppStore((s) => s.setError);
   const setAgentsOpen = useAppStore((s) => s.setAgentsOpen);
   const setAgentsTab = useAppStore((s) => s.setAgentsTab);
-  const pushItem = useAppStore((s) => s.pushItem);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -108,27 +111,23 @@ export function SubagentsPanel() {
         try {
           const st = await switchSession(childId);
           loadScrollForSession(childId);
-          const items = useAppStore.getState().items;
-          if (items.length === 0) {
+          let histPager = null as ReturnType<typeof hydrateHistoryReplace> | null;
+          if (useAppStore.getState().items.length === 0) {
             try {
-              const hist = await getSessionHistory(childId, 200);
-              for (const h of hist) {
-                if (h.kind === "user" || h.kind === "agent" || h.kind === "system") {
-                  pushItem(
-                    {
-                      id: `hist-${childId}-${h.kind}-${Math.random()}`,
-                      kind: h.kind as "user" | "agent" | "system",
-                      text: h.text,
-                    },
-                    childId,
-                  );
-                }
-              }
+              const page = await getSessionHistory(
+                childId,
+                HISTORY_INITIAL_LIMIT,
+                0,
+              );
+              histPager = hydrateHistoryReplace(childId, page);
             } catch {
               /* optional */
             }
           }
           setSession(st);
+          if (histPager) {
+            useAppStore.getState().setHistoryPager(histPager);
+          }
           setStatus("ready");
           setView("chat");
           return;

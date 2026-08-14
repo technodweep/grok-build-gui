@@ -1,5 +1,9 @@
 import { useState, type CSSProperties } from "react";
 import { connectAgent, getSessionHistory } from "../../shared/api";
+import {
+  HISTORY_INITIAL_LIMIT,
+  hydrateHistoryReplace,
+} from "../../shared/historyHydrate";
 import { nextId, useAppStore } from "../../shared/store";
 
 export function ReconnectBanner() {
@@ -33,6 +37,13 @@ export function ReconnectBanner() {
     setStatus("connecting");
     setError(null);
     clearPermissions();
+    const { setSessionBoot, patchSessionBoot } = useAppStore.getState();
+    setSessionBoot({
+      kind: resume ? "reconnect" : "new",
+      title: resume ? "Resume after disconnect" : "New session after disconnect",
+      detail: "Starting agent process…",
+      meta: cwd,
+    });
     try {
       const resumeId = resume ? session.sessionId : null;
       if (!resume) {
@@ -40,6 +51,11 @@ export function ReconnectBanner() {
       } else {
         setSuppressHistoryUpdates(true);
       }
+      patchSessionBoot({
+        detail: resume
+          ? "Reconnecting over ACP & loading session…"
+          : "Connecting over ACP…",
+      });
       const next = await connectAgent({
         cwd,
         alwaysApprove,
@@ -49,30 +65,16 @@ export function ReconnectBanner() {
       setStatus("ready");
       setView("chat");
       if (resume) {
+        patchSessionBoot({ detail: "Loading conversation history…" });
         try {
-          const hist = await getSessionHistory(next.sessionId, 200);
-          clearScroll();
-          const pushHist = useAppStore.getState().pushPromptHistory;
-          for (const h of hist) {
-            if (h.kind === "user") {
-              pushItem({ id: nextId(), kind: "user", text: h.text });
-              if (h.text?.trim()) pushHist(h.text.trim());
-            } else if (h.kind === "agent") {
-              pushItem({ id: nextId(), kind: "agent", text: h.text });
-            } else if (h.kind === "thought") {
-              pushItem({ id: nextId(), kind: "thought", text: h.text });
-            } else if (h.kind === "tool") {
-              pushItem({
-                id: nextId(),
-                kind: "tool",
-                toolCallId: h.toolCallId || nextId(),
-                title: h.title || "tool",
-                status: h.status || "completed",
-                toolKind: h.toolKind ?? undefined,
-                output: h.text || undefined,
-              });
-            }
-          }
+          const page = await getSessionHistory(
+            next.sessionId,
+            HISTORY_INITIAL_LIMIT,
+            0,
+          );
+          hydrateHistoryReplace(next.sessionId, page, {
+            seedPromptHistory: true,
+          });
         } catch {
           /* keep existing scroll */
         }
@@ -92,6 +94,7 @@ export function ReconnectBanner() {
       setSuppressHistoryUpdates(false);
     } finally {
       setWorking(false);
+      useAppStore.getState().setSessionBoot(null);
     }
   };
 

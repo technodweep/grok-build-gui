@@ -3,12 +3,23 @@
 use std::fs;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::time::SystemTime;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::config;
 use crate::error::{AppError, AppResult};
+
+/// In-process cache so scroll-up pagination does not re-parse `updates.jsonl`.
+struct HistoryCache {
+    session_id: String,
+    mtime: SystemTime,
+    items: Vec<HistoryItem>,
+}
+
+static HISTORY_CACHE: Mutex<Option<HistoryCache>> = Mutex::new(None);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -33,6 +44,25 @@ pub struct HistoryItem {
     pub status: Option<String>,
     pub tool_call_id: Option<String>,
     pub tool_kind: Option<String>,
+    /// Original event time in epoch ms when present in `updates.jsonl`.
+    /// Not invented — omitted when the log line has no timestamp.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ts: Option<u64>,
+}
+
+/// One page of session history (newest page first via `before` offset from end).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryPage {
+    pub items: Vec<HistoryItem>,
+    pub total: usize,
+    /// More older items exist before this page.
+    pub has_more: bool,
+    /// How many items from the end are covered after applying this page
+    /// (`before` + `items.len()`). Pass as next `before` to load older.
+    pub loaded_from_end: usize,
+    /// Absolute index of `items[0]` in the full history (0 = oldest).
+    pub start_index: usize,
 }
 
 /// List sessions, optionally filtered by exact cwd.
@@ -286,16 +316,85 @@ pub fn load_plan_mode(session_id: &str) -> AppResult<Option<PlanModeState>> {
 }
 
 /// Best-effort hydrate of scrollback from `updates.jsonl`.
-pub fn load_history(session_id: &str, limit: usize) -> AppResult<Vec<HistoryItem>> {
+///
+/// `before` = number of newest items already loaded (skip from the end).
+/// First page: `limit=150, before=0` → newest 150.
+/// Older page: `limit=100, before=150` → next 100 older, etc.
+pub fn load_history(session_id: &str, limit: usize, before: usize) -> AppResult<HistoryPage> {
+    let limit = limit.clamp(1, 500);
+    let all = load_history_all_cached(session_id)?;
+    let total = all.len();
+    if total == 0 {
+        return Ok(HistoryPage {
+            items: Vec::new(),
+            total: 0,
+            has_more: false,
+            loaded_from_end: 0,
+            start_index: 0,
+        });
+    }
+
+    let end = total.saturating_sub(before);
+    if end == 0 {
+        return Ok(HistoryPage {
+            items: Vec::new(),
+            total,
+            has_more: false,
+            loaded_from_end: before.min(total),
+            start_index: 0,
+        });
+    }
+    let start = end.saturating_sub(limit);
+    let items = all[start..end].to_vec();
+    let loaded_from_end = before + items.len();
+    let has_more = start > 0;
+
+    Ok(HistoryPage {
+        items,
+        total,
+        has_more,
+        loaded_from_end,
+        start_index: start,
+    })
+}
+
+fn updates_mtime(path: &Path) -> SystemTime {
+    fs::metadata(path)
+        .and_then(|m| m.modified())
+        .unwrap_or(SystemTime::UNIX_EPOCH)
+}
+
+fn load_history_all_cached(session_id: &str) -> AppResult<Vec<HistoryItem>> {
     let dir = find_session_dir(session_id)?
         .ok_or_else(|| AppError::Message(format!("session not found: {session_id}")))?;
     let updates = dir.join("updates.jsonl");
     if !updates.is_file() {
         return Ok(Vec::new());
     }
+    let mtime = updates_mtime(&updates);
 
+    if let Ok(guard) = HISTORY_CACHE.lock() {
+        if let Some(cache) = guard.as_ref() {
+            if cache.session_id == session_id && cache.mtime == mtime {
+                return Ok(cache.items.clone());
+            }
+        }
+    }
+
+    let items = parse_history_file(&updates)?;
+    if let Ok(mut guard) = HISTORY_CACHE.lock() {
+        *guard = Some(HistoryCache {
+            session_id: session_id.to_string(),
+            mtime,
+            items: items.clone(),
+        });
+    }
+    Ok(items)
+}
+
+fn parse_history_file(updates: &Path) -> AppResult<Vec<HistoryItem>> {
     let file =
-        fs::File::open(&updates).map_err(|e| AppError::Message(format!("open updates: {e}")))?;
+        fs::File::open(updates).map_err(|e| AppError::Message(format!("open updates: {e}")))?;
     let reader = BufReader::new(file);
 
     // Keep only user/agent/thought/tool chunks; merge consecutive same-kind text.
@@ -316,6 +415,8 @@ pub fn load_history(session_id: &str, limit: usize) -> AppResult<Vec<HistoryItem
             .get("sessionUpdate")
             .and_then(|x| x.as_str())
             .unwrap_or("");
+        // Only use timestamps already present in the log — never invent.
+        let line_ts = extract_line_ts(&v);
 
         match kind {
             "user_message_chunk" | "agent_message_chunk" | "agent_thought_chunk" => {
@@ -329,13 +430,9 @@ pub fn load_history(session_id: &str, limit: usize) -> AppResult<Vec<HistoryItem
                     _ => "agent",
                 };
                 if let Some(last) = items.last_mut() {
-                    if last.kind == item_kind && item_kind != "user" {
-                        // user messages usually come as one chunk per prompt; still merge
-                        last.text.push_str(&text);
-                        continue;
-                    }
                     if last.kind == item_kind {
                         last.text.push_str(&text);
+                        // Keep first-seen original ts for the merged item.
                         continue;
                     }
                 }
@@ -346,6 +443,7 @@ pub fn load_history(session_id: &str, limit: usize) -> AppResult<Vec<HistoryItem
                     status: None,
                     tool_call_id: None,
                     tool_kind: None,
+                    ts: line_ts,
                 });
             }
             "tool_call" | "tool_call_update" => {
@@ -378,6 +476,10 @@ pub fn load_history(session_id: &str, limit: usize) -> AppResult<Vec<HistoryItem
                     if tool_kind.is_some() {
                         last.tool_kind = tool_kind;
                     }
+                    // Preserve first-seen ts; fill only if missing.
+                    if last.ts.is_none() {
+                        last.ts = line_ts;
+                    }
                 } else {
                     items.push(HistoryItem {
                         kind: "tool".into(),
@@ -386,15 +488,12 @@ pub fn load_history(session_id: &str, limit: usize) -> AppResult<Vec<HistoryItem
                         status,
                         tool_call_id: Some(tool_call_id),
                         tool_kind,
+                        ts: line_ts,
                     });
                 }
             }
             _ => {}
         }
-    }
-
-    if items.len() > limit {
-        items = items.split_off(items.len() - limit);
     }
     Ok(items)
 }
@@ -408,6 +507,27 @@ fn extract_text(update: &Value) -> String {
         return s.to_string();
     }
     String::new()
+}
+
+/// Read original timestamps already stored in `updates.jsonl`.
+/// Prefers `_meta.agentTimestampMs` (ms), else top-level `timestamp` (sec or ms).
+fn extract_line_ts(v: &Value) -> Option<u64> {
+    let ms = v
+        .pointer("/params/_meta/agentTimestampMs")
+        .and_then(|x| as_u64(x))
+        .or_else(|| v.pointer("/_meta/agentTimestampMs").and_then(|x| as_u64(x)));
+    if let Some(ms) = ms {
+        return Some(ms);
+    }
+    let t = v.get("timestamp").and_then(|x| as_u64(x))?;
+    // Heuristic: values below ~1e12 are unix seconds; larger are ms.
+    Some(if t < 1_000_000_000_000 { t.saturating_mul(1000) } else { t })
+}
+
+fn as_u64(v: &Value) -> Option<u64> {
+    v.as_u64()
+        .or_else(|| v.as_i64().map(|n| n.max(0) as u64))
+        .or_else(|| v.as_f64().map(|n| n.max(0.0) as u64))
 }
 
 /// Session usage / context signals from `signals.json` (best-effort).
@@ -546,15 +666,18 @@ pub fn list_subagents(parent_session_id: &str) -> AppResult<Vec<SubagentInfo>> {
         out.push(SubagentInfo {
             id,
             parent_session_id: parent_session_id.to_string(),
+            // Prefer human title/description as the display name when no name field.
             name: v
                 .get("name")
                 .or_else(|| v.get("agentName"))
+                .or_else(|| v.get("description"))
                 .and_then(|x| x.as_str())
                 .map(|s| s.to_string()),
             agent_type: v
                 .get("agentType")
-                .or_else(|| v.get("type"))
+                .or_else(|| v.get("subagent_type"))
                 .or_else(|| v.get("subagentType"))
+                .or_else(|| v.get("type"))
                 .and_then(|x| x.as_str())
                 .map(|s| s.to_string()),
             status: v
@@ -573,6 +696,8 @@ pub fn list_subagents(parent_session_id: &str) -> AppResult<Vec<SubagentInfo>> {
                 .or_else(|| v.get("childSessionId"))
                 .or_else(|| v.get("session_id"))
                 .or_else(|| v.get("child_session_id"))
+                // CLI often sets child_session_id == subagent_id
+                .or_else(|| v.get("subagent_id"))
                 .and_then(|x| x.as_str())
                 .map(|s| s.to_string()),
             isolation,
@@ -592,7 +717,28 @@ pub fn list_subagents(parent_session_id: &str) -> AppResult<Vec<SubagentInfo>> {
         });
     }
 
-    out.sort_by(|a, b| a.id.cmp(&b.id));
+    // Active / running first, then completed; stable by id within group.
+    out.sort_by(|a, b| {
+        let rank = |s: &SubagentInfo| -> u8 {
+            let st = s.status.as_deref().unwrap_or("").to_ascii_lowercase();
+            if s.live
+                || st.contains("run")
+                || st.contains("work")
+                || st.contains("active")
+                || st.contains("progress")
+                || st.contains("pending")
+            {
+                0
+            } else if st.contains("fail") || st.contains("error") || st.contains("cancel") {
+                1
+            } else {
+                2
+            }
+        };
+        rank(a)
+            .cmp(&rank(b))
+            .then_with(|| b.id.cmp(&a.id)) // newest-ish ids first
+    });
     Ok(out)
 }
 

@@ -13,6 +13,7 @@ import type {
   PlanModeState,
   QueuedPrompt,
   ScrollItem,
+  SessionBootState,
   SessionMode,
   SessionModelsState,
   SessionSignals,
@@ -127,9 +128,15 @@ interface AppState {
   scrollToIndex: number | null;
   /** Last focused item index for turn navigation (persists after scrollToIndex clears). */
   turnFocusIndex: number | null;
+  /** Loading overlay while connecting / resuming a session (agent can take a few seconds). */
+  sessionBoot: SessionBootState | null;
+  /** Disk history pagination for the active session scrollback. */
+  historyPager: import("./types").HistoryPager | null;
 
   setEnv: (env: EnvironmentInfo | null) => void;
   setStatus: (status: AgentStatus) => void;
+  setSessionBoot: (boot: SessionBootState | null) => void;
+  patchSessionBoot: (patch: Partial<SessionBootState>) => void;
   setSession: (session: SessionState | null) => void;
   setView: (view: AppView) => void;
   setLiveSessions: (sessions: LiveSession[]) => void;
@@ -139,6 +146,11 @@ interface AppState {
   setAlwaysApprove: (v: boolean) => void;
   setProjectCwd: (cwd: string) => void;
   clearScroll: () => void;
+  /** Prepend older history items without flipping stick-to-bottom. */
+  prependItems: (items: ScrollItem[], sessionId?: string) => void;
+  setHistoryPager: (
+    pager: import("./types").HistoryPager | null | ((prev: import("./types").HistoryPager | null) => import("./types").HistoryPager | null),
+  ) => void;
   /** Route updates into a specific session's scroll (defaults to active). */
   pushItem: (item: ScrollItem, sessionId?: string) => void;
   appendAgentText: (text: string, sessionId?: string) => void;
@@ -683,9 +695,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   timelineOpen: false,
   scrollToIndex: null,
   turnFocusIndex: null,
+  sessionBoot: null,
+  historyPager: null,
 
   setEnv: (env) => set({ env }),
   setStatus: (status) => set({ status }),
+  setSessionBoot: (sessionBoot) => set({ sessionBoot }),
+  patchSessionBoot: (patch) =>
+    set((s) =>
+      s.sessionBoot ? { sessionBoot: { ...s.sessionBoot, ...patch } } : {},
+    ),
   setSession: (session) => {
     if (!session) {
       set({
@@ -702,16 +721,24 @@ export const useAppStore = create<AppState>((set, get) => ({
         elicitations: [],
         userQuestions: [],
         planApprovals: [],
+        historyPager: null,
       });
       return;
     }
     const items = get().sessionScroll[session.sessionId] ?? [];
+    const prevId = get().session?.sessionId;
+    const pager = get().historyPager;
     set({
       session,
       items,
       view: "chat",
       modelId: session.modelId ?? get().modelId,
       effort: session.effort ?? get().effort,
+      // Drop pager when switching sessions; resume hydrate re-sets it.
+      historyPager:
+        prevId === session.sessionId && pager?.sessionId === session.sessionId
+          ? pager
+          : null,
     });
   },
   setView: (view) => set({ view }),
@@ -725,11 +752,22 @@ export const useAppStore = create<AppState>((set, get) => ({
     const sid = activeId(get);
     if (sid) {
       const map = { ...get().sessionScroll, [sid]: [] };
-      set({ sessionScroll: map, items: [] });
+      set({ sessionScroll: map, items: [], historyPager: null });
     } else {
-      set({ items: [] });
+      set({ items: [], historyPager: null });
     }
   },
+
+  prependItems: (newItems, sessionId) => {
+    if (newItems.length === 0) return;
+    // Preserve provided ts (including undefined for history without timestamps).
+    withSessionItems(get, set, sessionId, (items) => [...newItems, ...items]);
+  },
+
+  setHistoryPager: (pager) =>
+    set((s) => ({
+      historyPager: typeof pager === "function" ? pager(s.historyPager) : pager,
+    })),
 
   pushItem: (item, sessionId) =>
     withSessionItems(get, set, sessionId, (items) => [

@@ -7,8 +7,12 @@ import {
   listDiskSessions,
   renameDiskSession,
 } from "../../shared/api";
+import {
+  HISTORY_INITIAL_LIMIT,
+  hydrateHistoryReplace,
+} from "../../shared/historyHydrate";
 import { nextId, useAppStore } from "../../shared/store";
-import type { DiskSession, HistoryItem } from "../../shared/types";
+import type { DiskSession } from "../../shared/types";
 
 function formatWhen(iso?: string | null): string {
   if (!iso) return "";
@@ -22,29 +26,6 @@ function formatWhen(iso?: string | null): string {
     });
   } catch {
     return iso;
-  }
-}
-
-function hydrateHistory(items: HistoryItem[]) {
-  const pushItem = useAppStore.getState().pushItem;
-  const upsertTool = useAppStore.getState().upsertTool;
-  const pushPromptHistory = useAppStore.getState().pushPromptHistory;
-  for (const h of items) {
-    if (h.kind === "user") {
-      pushItem({ id: nextId(), kind: "user", text: h.text });
-      if (h.text?.trim()) pushPromptHistory(h.text.trim());
-    } else if (h.kind === "agent") {
-      pushItem({ id: nextId(), kind: "agent", text: h.text });
-    } else if (h.kind === "thought") {
-      pushItem({ id: nextId(), kind: "thought", text: h.text });
-    } else if (h.kind === "tool") {
-      upsertTool({
-        toolCallId: h.toolCallId || nextId(),
-        title: h.title || "tool",
-        status: h.status || "completed",
-        toolKind: h.toolKind || undefined,
-      });
-    }
   }
 }
 
@@ -123,11 +104,18 @@ export function SessionList({
     setStatus("connecting");
     setError(null);
     clearScroll();
-    const setSuppress = useAppStore.getState().setSuppressHistoryUpdates;
-    // Suppress stream history while loading so disk hydrate + agent replay don't double.
-    setSuppress(true);
+    const { setSuppressHistoryUpdates, setSessionBoot, patchSessionBoot } =
+      useAppStore.getState();
+    setSuppressHistoryUpdates(true);
+    setSessionBoot({
+      kind: "resume",
+      title: s.title || `Session ${s.id.slice(0, 8)}`,
+      detail: "Starting agent process…",
+      meta: s.cwd || s.id,
+    });
     try {
       setProjectCwd(s.cwd);
+      patchSessionBoot({ detail: "Connecting over ACP & loading session…" });
       const session = await connectAgent({
         cwd: s.cwd,
         alwaysApprove,
@@ -137,15 +125,17 @@ export function SessionList({
       setStatus("ready");
       setView("chat");
 
-      // Prefer disk hydrate once (stable). If empty, leave room for any live tail.
+      patchSessionBoot({ detail: "Loading conversation history…" });
       try {
-        const hist = await getSessionHistory(s.id, 150);
-        clearScroll();
-        hydrateHistory(hist);
+        const page = await getSessionHistory(s.id, HISTORY_INITIAL_LIMIT, 0);
+        hydrateHistoryReplace(session.sessionId || s.id, page, {
+          seedPromptHistory: true,
+        });
       } catch {
         /* history is best-effort */
       }
 
+      patchSessionBoot({ detail: "Almost ready…" });
       pushItem({
         id: nextId(),
         kind: "system",
@@ -158,8 +148,8 @@ export function SessionList({
       pushItem({ id: nextId(), kind: "system", text: msg, level: "error" });
     } finally {
       setBusyId(null);
-      // Allow new live turns after a short grace period.
-      window.setTimeout(() => setSuppress(false), 1500);
+      setSessionBoot(null);
+      window.setTimeout(() => setSuppressHistoryUpdates(false), 1500);
     }
   };
 
@@ -330,11 +320,20 @@ export function SessionList({
                 <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                   <button
                     type="button"
-                    disabled={busyId === s.id}
+                    disabled={busyId !== null}
                     onClick={() => void onResume(s)}
-                    style={btnStyle("#7c9cff", "#0c0e12")}
+                    style={{
+                      ...btnStyle("#7c9cff", "#0c0e12"),
+                      opacity: busyId && busyId !== s.id ? 0.5 : 1,
+                      minWidth: 88,
+                    }}
+                    title={
+                      busyId === s.id
+                        ? "Resuming — starting agent and loading history"
+                        : "Resume this session"
+                    }
                   >
-                    Resume
+                    {busyId === s.id ? "Resuming…" : "Resume"}
                   </button>
                   <button
                     type="button"

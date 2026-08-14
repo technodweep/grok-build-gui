@@ -84,7 +84,15 @@ export function Welcome({ env }: { env: EnvironmentInfo }) {
     setStatus("connecting");
     setError(null);
     clearScroll();
+    const { setSessionBoot, patchSessionBoot } = useAppStore.getState();
+    setSessionBoot({
+      kind: "new",
+      title: "New session",
+      detail: "Starting agent process…",
+      meta: projectCwd,
+    });
     try {
+      patchSessionBoot({ detail: "Connecting over ACP…" });
       const session = await connectAgent({
         cwd: projectCwd,
         alwaysApprove,
@@ -99,6 +107,7 @@ export function Welcome({ env }: { env: EnvironmentInfo }) {
       });
       // Apply Auto after connect when user selected it on the welcome screen.
       if (!alwaysApprove && sessionMode === "auto") {
+        patchSessionBoot({ detail: "Applying Auto permission mode…" });
         try {
           await sendPrompt("/auto");
           pushItem({
@@ -117,6 +126,7 @@ export function Welcome({ env }: { env: EnvironmentInfo }) {
       pushItem({ id: nextId(), kind: "system", text: msg, level: "error" });
     } finally {
       setConnecting(false);
+      useAppStore.getState().setSessionBoot(null);
     }
   };
 
