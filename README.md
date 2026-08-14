@@ -38,6 +38,10 @@ KayG desktop app  <── Agent Client Protocol ──>  Grok Build CLI  <──
 
 ## Download
 
+> [!NOTE]
+> KayG is currently in pre-release. Installable binaries will be published with
+> the first `v0.1.0` release. Until then, you can build KayG from source below.
+
 Release tags beginning with `v` automatically build KayG packages for Linux,
 macOS, and Windows and publish them to
 [GitHub Releases](https://github.com/technodweep/grok-build-gui/releases).
