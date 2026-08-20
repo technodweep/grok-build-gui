@@ -14,6 +14,8 @@ desktop client from [Technodweep](https://www.technodweep.com/).** It gives the
 Linux, macOS, and Windows, powered by **Tauri 2**, React, Rust, and the
 [Agent Client Protocol (ACP)](https://agentclientprotocol.com).
 
+**Website:** [kayg.technodweep.com](https://kayg.technodweep.com/)
+
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Platforms: Linux, macOS, Windows](https://img.shields.io/badge/Platforms-Linux%20%7C%20macOS%20%7C%20Windows-ff665a.svg)](docs/packaging.md)
 [![Built by Technodweep](https://img.shields.io/badge/Built%20by-Technodweep-f5b83b.svg)](https://www.technodweep.com/)
@@ -52,15 +54,23 @@ Click the preview to [watch the full-quality video](assets/demo/kayg-demo.mp4).
 
 ## Download
 
+Visit the [official KayG website](https://kayg.technodweep.com/) for product
+information, demos, and downloads.
+
+### Windows
+
+**[Download KayG for Windows x64 (.msi)](https://github.com/technodweep/grok-build-gui/releases/download/v0.1.0/KayG_0.1.0_x64_en-US.msi)**
+
+No administrator privileges required. Windows 10/11.
+
 > [!NOTE]
-> KayG v0.1.0 is available now. Download the Windows installer below or browse
+> KayG v0.1.0 is available now. Download the Windows installer above or browse
 > the GitHub release for all platform packages.
 
 Release tags beginning with `v` automatically build KayG packages for Linux,
 macOS, and Windows and publish them to
 [GitHub Releases](https://github.com/technodweep/grok-build-gui/releases).
-If a public release is not available yet, follow the source-build instructions
-below.
+For source builds, follow the instructions below.
 
 | Platform | Packages |
 |---|---|
