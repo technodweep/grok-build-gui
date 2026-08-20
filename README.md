@@ -36,6 +36,20 @@ for the Grok Build CLI** and its coding-agent workflows.
 KayG desktop app  <── Agent Client Protocol ──>  Grok Build CLI  <──>  xAI
 ```
 
+## See KayG in action
+
+<p align="center">
+  <a href="assets/demo/kayg-demo.mp4">
+    <img
+      src="assets/demo/kayg-demo.gif"
+      alt="KayG desktop app demo"
+      width="800"
+    />
+  </a>
+</p>
+
+Click the preview to [watch the full-quality video](assets/demo/kayg-demo.mp4).
+
 ## Download
 
 Release tags beginning with `v` automatically build KayG packages for Linux,
