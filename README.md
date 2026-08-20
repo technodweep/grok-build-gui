@@ -53,8 +53,8 @@ Click the preview to [watch the full-quality video](assets/demo/kayg-demo.mp4).
 ## Download
 
 > [!NOTE]
-> KayG is currently in pre-release. Installable binaries will be published with
-> the first `v0.1.0` release. Until then, you can build KayG from source below.
+> KayG v0.1.0 is available now. Download the Windows installer below or browse
+> the GitHub release for all platform packages.
 
 Release tags beginning with `v` automatically build KayG packages for Linux,
 macOS, and Windows and publish them to
@@ -66,7 +66,7 @@ below.
 |---|---|
 | Linux | `.deb`, `.rpm`, `.AppImage` |
 | macOS | `.app`, `.dmg` |
-| Windows | NSIS `.exe`, `.msi` |
+| Windows | [Download x64 MSI installer](https://github.com/technodweep/grok-build-gui/releases/download/v0.1.0/KayG_0.1.0_x64_en-US.msi) - NSIS `.exe`, `.msi` |
 
 ## Features
 
